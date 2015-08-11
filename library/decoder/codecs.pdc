@@ -1,0 +1,6 @@
+lame=lame
+faad=faad
+flac=flac
+ffmpeg=ffmpeg
+oggdec=oggdec
+wmadec=None

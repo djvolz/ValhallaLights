@@ -22,7 +22,7 @@ from pygame import mixer # Load the required library
 
 import stabilize
 import audio_setup
-from lib.music import calculate_levels, read_musicfile_in_chunks
+from library.music import calculate_levels, read_musicfile_in_chunks
 
 
 #try:

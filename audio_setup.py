@@ -1,6 +1,6 @@
 import os
 import alsaaudio as aa
-from lib.music import calculate_column_frequency
+from library.music import calculate_column_frequency
 
 
 class Constants:
