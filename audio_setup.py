@@ -9,7 +9,7 @@ class Constants:
 	SAMPLE_RATE      = 44100
 	NUM_CHANNELS     = 2
 	PERIOD_SIZE      = 2048
-	FREQUENCY_LIMITS =  calculate_column_frequency(200, 10000, COLUMNS)
+	FREQUENCY_LIMITS = calculate_column_frequency(200, 10000, COLUMNS)
 
 def set_audio(aux_in, lr_swap):
 	#HPOUT2 is the emotiva/klipsch (left)
@@ -54,3 +54,7 @@ def get_audio_input():
 	input.setrate(Constants.SAMPLE_RATE)
 	input.setperiodsize(Constants.PERIOD_SIZE)
 	return input
+
+def update_frequency_limits_with_columns(columns):
+	Constants.FREQUENCY_LIMITS = calculate_column_frequency(200, 10000, columns)
+

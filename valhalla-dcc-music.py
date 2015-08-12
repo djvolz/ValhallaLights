@@ -58,7 +58,7 @@ class Constants:
 	MIN_INTENSITY    = 0.0
 	MAX_INTENSITY	 = 255.0
 	
-class MIDI:
+class Packet:
 	scale = 1 
 	mode  = 0 
 	knobs = [0]*8 #initialize knobs 
@@ -73,6 +73,7 @@ class Settings:
 	buttons     = [False]*3
 	thirdcolors = [False]*3
 	volume 		= 30
+	mode_music  = False
 
 
 
@@ -154,24 +155,25 @@ class AMK:
 	def analyze_line_in(self):
 		input = audio_setup.get_audio_input()
 		while True:
-			size, chunk = input.read()
-			if size > 0:
-				# Make the chunk even length if it isn't already
-				L = (len(chunk)/2 * 2)
-				chunk = chunk[:L]
-				
-				# Calculate the levels
-				data = calculate_levels(chunk, audio_setup.Constants.SAMPLE_RATE, audio_setup.Constants.FREQUENCY_LIMITS)
-				
-				# Interpret the data
-				self.convert_music_data_to_packet(data)
-				self.control_midi()
+			self.control_midi()
+			if Settings.mode_music:
+				size, chunk = input.read()
+				if size > 0:
+					# Make the chunk even length if it isn't already
+					L = (len(chunk)/2 * 2)
+					chunk = chunk[:L]
+					
+					# Calculate the levels
+					data = calculate_levels(chunk, audio_setup.Constants.SAMPLE_RATE, audio_setup.Constants.FREQUENCY_LIMITS)
+					
+					# Interpret the data
+					self.convert_music_data_to_packet(data)
 
 
 
 	# Turn a local audio file into light (aka magic)
 	def analyze_audio_file_local(self):
-		path = 'music/sample.mp3'
+		path = 'music/journey.mp3'
 		print "path = " + path
 
 		for chunk, sample_rate in read_musicfile_in_chunks(path, play_audio=True):
@@ -184,9 +186,9 @@ class AMK:
 	# Stuff the packet and send it out over the network.
 	def update_lights(self, rgb):
 		try:
-			t = [int(MIDI.mode)]
-			t.extend([int(item) for item in MIDI.knobs[2:8]])
-			t.extend([int(item/MIDI.scale) for sublist in rgb for item in sublist])
+			t = [int(Packet.mode)]
+			t.extend([int(item) for item in Packet.knobs[2:8]])
+			t.extend([int(item/Packet.scale) for sublist in rgb for item in sublist])
 			Constants.SOCK.sendto(struct.pack('B' * len(t),*t),(Constants.LED_IP, Constants.LED_PORT))						
 		except Exception as e:
 			print(e)
@@ -209,8 +211,9 @@ class AMK:
 
 		# Scale the Packet value to be within the slider ranges
 		for i in range(len(intensity_matrix)):
-			for j in range(len(MIDI.rgb[i])):
-				rgb[i][j] = self.scale(intensity_matrix[i], (Constants.MIN_INTENSITY, Constants.MAX_INTENSITY), (0.0, MIDI.rgb[i][j]))
+			for j in range(len(Packet.rgb[i])):
+				rgb[i][j] = self.scale(intensity_matrix[i], (Constants.MIN_INTENSITY, Constants.MAX_INTENSITY), (int(Packet.knobs[6]/254. * Packet.rgb[i][j]), Packet.rgb[i][j]))
+				#print("knob %d %d" % (Packet.knobs[6], int(Packet.knobs[6]/254. * Packet.rgb[i][j])))
 				
 		# update the lights from the matrix
 		self.update_lights(rgb)
@@ -252,24 +255,24 @@ class AMK:
 
 				if me.data1 == 0x00: # and me.data1 <= 0x01: #slider 0
 					Settings.volume = me.data2
-					self.set_volume(Settings.volume, MIDI.knobs[0])
+					self.set_volume(Settings.volume, Packet.knobs[0])
 					
 					
 				#process slider event
 				if me.data1 >= 0x00 and me.data1 <= 0x07 and me.data1 >= 0x02:
 					#sliders[me.data1] = me.data2 * 2
-					MIDI.rgb[int((me.data1-2)/3)][(me.data1-2)%3] = me.data2 * 2  #sliders 2-4 are MIDI.rgb[1] sliders 5-7 are MIDI.rgb[2]
-					Settings.intensity = (sum(MIDI.rgb[0]) + sum(MIDI.rgb[1]) ) / 2 #/ 6 #average Settings.intensity of lighting, used for calculating Settings.intensity of third color.
+					Packet.rgb[int((me.data1-2)/3)][(me.data1-2)%3] = me.data2 * 2  #sliders 2-4 are Packet.rgb[1] sliders 5-7 are Packet.rgb[2]
+					Settings.intensity = (sum(Packet.rgb[0]) + sum(Packet.rgb[1]) ) / 2 #/ 6 #average Settings.intensity of lighting, used for calculating Settings.intensity of third color.
 					changed = True
 					#so really we should update the Settings.intensity of the third color here... but it's actually kind of a nice way to be able to adjust it.
 				
 				#knob event
 				if me.data1 >= 0x10 and me.data1 <= 0x17:						
-					MIDI.knobs[me.data1 - 0x10] = me.data2 * 2
+					Packet.knobs[me.data1 - 0x10] = me.data2 * 2
 					if me.data1 - 0x10 >= 2:
 						changed = True
 					elif me.data1 == 0x10:
-						self.set_volume(Settings.volume, MIDI.knobs[0])
+						self.set_volume(Settings.volume, Packet.knobs[0])
 									  
 				if me.data1 >= 0x20 and me.data1 <= 0x47 and me.data2 == 127:  #these are actually triggered on both button up and button down, so you have to check for the 127 (which is on button down, I believe)
 					idx = (me.data1 >> 4) - 2;
@@ -295,18 +298,24 @@ class AMK:
 						numlit = sum(Settings.thirdcolors)
 						if numlit:
 							for i in range(3):
-								MIDI.rgb[2][i] = Settings.thirdcolors[i]*Settings.intensity/numlit #split Settings.intensity across the number of colors (MIDI.rgb) enabled.
-								if MIDI.rgb[2][i] > 255:  # if one of the first two colors is full Settings.intensity white, we can't match the Settings.intensity.
-									MIDI.rgb[2][i] = 255
+								Packet.rgb[2][i] = Settings.thirdcolors[i]*Settings.intensity/numlit #split Settings.intensity across the number of colors (Packet.rgb) enabled.
+								if Packet.rgb[2][i] > 255:  # if one of the first two colors is full Settings.intensity white, we can't match the Settings.intensity.
+									Packet.rgb[2][i] = 255
+						audio_setup.update_frequency_limits_with_columns(3 if any(Settings.thirdcolors) else 2)
 						changed = True
-					elif (me.data1 & 0x05 == 5 and idx == 0):
-						if MIDI.scale == 4:
-							MIDI.scale = 1
-							self.light(me.data1, False)
-						else:
-							MIDI.scale = 4
-							self.light(me.data1, True)
-						changed = True
+					elif (me.data1 & 0x05 == 5):
+						if idx == 0:
+							if Packet.scale == 4:
+								Packet.scale = 1
+								self.light(me.data1, False)
+							else:
+								Packet.scale = 4
+								self.light(me.data1, True)
+							changed = True
+						if idx == 1:  #music_mode
+							Settings.mode_music = not Settings.mode_music
+							self.light(me.data1, Settings.mode_music)
+							changed = True
 					elif (me.data1 & 0x07 == 0x00): #first row of Settings.buttons
 						print("button 0")
 						#set the input
@@ -322,20 +331,20 @@ class AMK:
 							
 						
 					else:
-						if (MIDI.mode > 0 or MIDI.scale != 1):
+						if (Packet.mode > 0 or Packet.scale != 1):
 							changed = True
-						MIDI.mode = 0
-						MIDI.scale = 1
+						Packet.mode = 0
+						Packet.scale = 1
 						Settings.buttons = [False]*3
 						Settings.thirdcolors = [False]*3
-						MIDI.rgb[2] = [0]*3;
+						Packet.rgb[2] = [0]*3;
 						self.all_off()
 						self.light(0x20, Settings.aux_in) #relight the audio keys if they need to be
 						self.light(0x30, Settings.lr_swap)
-					MIDI.mode = abs( (Settings.buttons[0]) + (Settings.buttons[1] << 1) + (Settings.buttons[2] << 2)) + abs( any(Settings.thirdcolors)  << 3)   #why is this negative!??!
+					Packet.mode = abs( (Settings.buttons[0]) + (Settings.buttons[1] << 1) + (Settings.buttons[2] << 2)) + abs( any(Settings.thirdcolors)  << 3)   #why is this negative!??!
 					
-				if changed: #me.data1 >= 2 and me.data1 <=7:
-					self.update_lights(MIDI.rgb)
+				if changed and not Settings.mode_music: #me.data1 >= 2 and me.data1 <=7:
+					self.update_lights(Packet.rgb)
 					# pass
 
 	def MainLoop(self):
@@ -343,10 +352,10 @@ class AMK:
 		# self.analyze_line_in()
 
 		# Once song finishes. Default to checking midi controller
-		while True:
-			# waste time so that we don't eat too much CPU
-			pygame.time.wait(1)
-			self.control_midi()
+		# while True:
+		# 	# waste time so that we don't eat too much CPU
+		# 	pygame.time.wait(1)
+		# 	self.control_midi()
 
 	
 		
