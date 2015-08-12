@@ -172,8 +172,7 @@ class AMK:
 
 
 	# Turn a local audio file into light (aka magic)
-	def analyze_audio_file_local(self):
-		path = 'music/journey.mp3'
+	def analyze_audio_file_local(self, path):
 		print "path = " + path
 
 		for chunk, sample_rate in read_musicfile_in_chunks(path, play_audio=True):
@@ -348,8 +347,11 @@ class AMK:
 					# pass
 
 	def MainLoop(self):
-		self.analyze_audio_file_local()
-		# self.analyze_line_in()
+		if len(sys.argv) > 1:
+			path = sys.argv[1]
+			self.analyze_audio_file_local(path)
+
+		self.analyze_line_in()
 
 		# Once song finishes. Default to checking midi controller
 		# while True:
