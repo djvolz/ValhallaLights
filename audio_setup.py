@@ -5,7 +5,7 @@ from library.music import calculate_column_frequency
 
 class Constants:
 	# DECODER CONSTANTS
-	COLUMNS          = 2 
+	COLUMNS          = 2
 	SAMPLE_RATE      = 44100
 	NUM_CHANNELS     = 2
 	PERIOD_SIZE      = 2048
@@ -45,7 +45,7 @@ def init_audio(aux=True):
 		os.system("amixer -Dhw:0 cset name='HPOUT1L Input 1' AIF2RX1; amixer -Dhw:0 cset name='HPOUT1R Input 1' AIF2RX2")
 		#set capture device to AIF2RX
 		os.system("amixer -Dhw:0 cset name='AIF1TX1 Input 1' AIF2RX1; amixer -Dhw:0 cset name='AIF1TX2 Input 1' AIF2RX2;")
-		os.system("amixer -Dhw:0 cset name='AIF1TX1 Input 1 Volume' 32; amixer -Dhw:0 cset name='AIF1TX2 Input 1 Volume' 32") #set capture volume			
+		os.system("amixer -Dhw:0 cset name='AIF1TX1 Input 1 Volume' 32; amixer -Dhw:0 cset name='AIF1TX2 Input 1 Volume' 32") #set capture volume
 
 def get_audio_input():
 	input = aa.PCM(aa.PCM_CAPTURE, aa.PCM_NONBLOCK)
