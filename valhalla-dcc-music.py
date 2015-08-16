@@ -53,7 +53,7 @@ from library.music import calculate_levels, read_musicfile_in_chunks
 class Constants:
 	# NETWORK CONSTANTS
 	SOCK = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-	LED_IP			 = "10.0.1.13"	#"192.168.137.22"
+	LED_IP			 = "10.0.1.13" #"192.168.137.22"
 	LED_PORT		 = 5252
 	# LED CONSTANTS
 	MIN_INTENSITY	 = 0.0
@@ -176,9 +176,16 @@ class AMK:
 	def analyze_audio_file_local(self, path):
 		print "path = " + path
 
+		# initial settings
+		Packet.knobs[2] = 166.0
+		Packet.knobs[3] = 0.0
+		Packet.knobs[4] = 254.0
+		Packet.knobs[5] = 0.0
+		Packet.knobs[6] = 248.0
+
 		for chunk, sample_rate in read_musicfile_in_chunks(path, play_audio=True):
 			data = calculate_levels(chunk, sample_rate, audio_setup.Constants.FREQUENCY_LIMITS)
-			self.convert_data_to_offset_packet(data)
+			self.convert_data_to_intensity_packet(data)
 			self.control_midi()
 
 
@@ -210,13 +217,14 @@ class AMK:
 			# Map the light values to be within the range of the Packet light intensities
 			offset_matrix[col] = self.scale(val, (offset_range.music_min_intensity, offset_range.music_max_intensity), (Constants.MIN_INTENSITY, Constants.MAX_INTENSITY))
 
-		offset = self.scale(offset_matrix[0], (Constants.MIN_INTENSITY, Constants.MAX_INTENSITY), (int(Packet.knobs[6]/254. * Packet.knobs[4]), Packet.knobs[4]))
+		mod_knob = 4
+		offset = self.scale(offset_matrix[0], (Constants.MIN_INTENSITY, Constants.MAX_INTENSITY), (int(Packet.knobs[6]/254. * Packet.knobs[mod_knob]), Packet.knobs[mod_knob]))
 		knobs = Packet.knobs[:]
-		knobs[4] = offset
+		knobs[mod_knob] = offset
 		self.update_lights(Packet.rgb, knobs)
-		print(offset)
+		print(knobs)
 
-	def convert_data_to_rgb_intensity_packet(self, matrix):
+	def convert_data_to_intensity_packet(self, matrix):
 		# Dynamically update the possible light intensity range
 		stabilize.stabilize_light_intensities()
 
