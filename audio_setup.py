@@ -32,7 +32,7 @@ def set_audio(aux_in, lr_swap):
 			os.system("amixer -Dhw:0 cset name='HPOUT1L Input 1' AIF2RX2; amixer -Dhw:0 cset name='HPOUT1R Input 1' AIF2RX2") #both right
 
 def init_audio(aux=True):
-	"""Initialize the audio settings for V alhalla. Can use either aux line in (aux) or computer (SPDIF, which is AIF2RX)"""
+	"""Initialize the audio settings for Valhalla. Can use either aux line in (aux) or computer (SPDIF, which is AIF2RX)"""
 	os.system("amixer -Dhw:0 cset name='HPOUT2 Digital Switch' on")
 	os.system("amixer -Dhw:0 cset name='SPDIF in Switch' on; amixer -Dhw:0 cset name='TX Playback Switch' off; amixer -Dhw:0 cset name='RX Playback Switch' on; amixer -Dhw:0 cset name='AIF Playback Switch' on;")
 	if aux:

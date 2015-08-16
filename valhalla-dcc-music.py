@@ -22,6 +22,7 @@ from pygame import mixer # Load the required library
 
 import stabilize
 import audio_setup
+import korg_midi_reader as korg
 from library.music import calculate_levels, read_musicfile_in_chunks
 
 
@@ -42,8 +43,8 @@ from library.music import calculate_levels, read_musicfile_in_chunks
 # 0x30 - 0x37: M buttons
 # 0x40 - 0x47: R buttons
 
+#TODO: add third color back in
 #TODO: fix find nanokontrol and fix setting IP and Port above...
-#TODO: cleanup the way the sliders are packed...
 #TODO: add sound recording and sending to a different port #this looks like a good starting point: http://people.csail.mit.edu/hubert/pyaudio/docs/ #http://stackoverflow.com/questions/18406570/python-record-audio-on-detected-sound	#http://stackoverflow.com/questions/892199/detect-record-audio-in-python/892293#892293 #http://stackoverflow.com/questions/1797631/recognising-tone-of-the-audio #https://docs.python.org/2/library/audioop.html #https://wiki.python.org/moin/PythonInMusic #http://www.codeproject.com/Articles/32172/FFT-Guitar-Tuner #http://stackoverflow.com/questions/19079429/using-pyaudio-libraries-in-python-linux (select input)
 #TODO: add multiple "strips" or "domains"?
 #TODO: fix button up and button down mode trigger!
@@ -59,97 +60,88 @@ class Constants:
 	MIN_INTENSITY	 = 0.0
 	MAX_INTENSITY	 = 255.0
 
-class Packet:
+class MIDI:
 	scale = 1
 	mode  = 0
-	knobs = [0]*8 #initialize knobs
-	rgb   = [x[:] for x in [[0]*3]*3] #I really hate python sometimes...
-
-class Settings:
-	midi_in		= None
-	midi_out	= None
-	intensity	= 0; #average intensity of first two colors (to set intensity of third light).
-	aux_in		= False
-	lr_swap		= False
-	buttons		= [False]*3
-	thirdcolors = [False]*3
-	volume		= 30
-	mode_music	= False
-
-
-
-
-
-class AMK:
+	rgb = [x[:] for x in [[0]*3]*3] #I really hate python sometimes...
+	knobs = {'ZERO': 	 -1,
+			 'ONE': 	 -1,
+			 'length': 	 -1,
+			 'gradient': -1,
+			 'offset': 	 -1,
+			 'FIVE': 	 -1,
+			 'minimum':	 -1,
+			 'SEVEN': 	 -1}
+	buttons = {'scale': 	 		   False,
+			   'music_mode_intensity': False,
+			   'music_mode_offset':    False,
+			   'pulse': 			   False,
+			   'rotate': 	 		   False,
+			   'sway':				   False,
+			   'red':				   False,
+			   'green':				   False,
+			   'blue':				   False
+			   }
 
 	def __init__(self):
-		pygame.init()
-		pygame.midi.init()
-
-	# both display all attached midi devices, and look for ones matching nanoKONTROL2
-	def findNanoKontrol(self, quiet=False):
-		if not quiet:
-			print("ID: Device Info")
-			print("---------------")
-		in_id = None
-		out_id = None
-		for i in range( pygame.midi.get_count() ):
-			(interf, name, input, output, opened) = pygame.midi.get_device_info(i)
-
-			in_out = ""
-			if input:
-				in_out = "(input)"
-			if output:
-				in_out = "(output)"
-
-			if name.find("nanoKONTROL2") >= 0 and input:
-				in_id = i
-			elif name.find("nanoKONTROL2") >= 0 and output:
-				out_id = i
-
-			if not quiet:
-				print ("%2i: interface :%s:, name :%s:, opened :%s:  %s" % (i, interf, name, opened, in_out) )
-
-		return (in_id, out_id)
-
-	# turn a LED on or off
-	def light(self, btn, on):
-		if on:
-			out = 127
-		else:
-			out = 0
-		self.midi_out.write_short(176, btn, out)
-
-	def all_off(self):
-		for i in [0x20, 0x30, 0x40]:
-			for j in range(8):
-				self.light(i+j, False)
-
-
-	def setup(self):
-		self.set_midi_device()
-		self.all_off()	#make sure nothing is lit.
 		audio_setup.init_audio()
+		self.midi_reader = korg.KorgMidiReader()
+
+	def read_events(self):
+		self.read_knobs()
+		self.read_rgb()
+		self.read_buttons()
+		return self.midi_reader.read_events()
+
+	def read_rgb(self):
+		# translate the slider data into rgb values for packet
+		self.rgb[0] = [int(item) for item in self.midi_reader.sliders[2:5]]
+		self.rgb[1] = [int(item) for item in self.midi_reader.sliders[5:8]]
+		self.rgb[2] = [0]*3 #self.buttons[6]
+
+	def read_knobs(self):
+		self.knobs = {'ZERO': self.midi_reader.knobs[0],
+				 'ONE': self.midi_reader.knobs[1],
+				 'length': self.midi_reader.knobs[2],
+				 'gradient': self.midi_reader.knobs[3],
+				 'offset': self.midi_reader.knobs[4],
+				 'FIVE': self.midi_reader.knobs[5],
+				 'minimum': self.midi_reader.knobs[6],
+				 'SEVEN': self.midi_reader.knobs[7]}
+	def read_buttons(self):
+		self.buttons = {'scale': 	 		    self.midi_reader.buttons[5][0],
+						'music_mode_intensity': self.midi_reader.buttons[5][1],
+						'music_mode_offset':    self.midi_reader.buttons[5][2],
+						'pulse': 			    self.midi_reader.buttons[7][0],
+						'rotate': 	 		    self.midi_reader.buttons[7][1],
+						'sway':				    self.midi_reader.buttons[7][2],
+						'red':				    self.midi_reader.buttons[6][0],
+						'green': 	 		    self.midi_reader.buttons[6][1],
+						'blue':			    	self.midi_reader.buttons[6][2]
+						}
 
 
-	def set_midi_device(self):
-		# attempt to autodetect nanokontrol
-		(in_device_id, out_device_id) = self.findNanoKontrol()
+		self.mode = self.get_mode()
 
-		# if none of the above, use system default IDs
-		if in_device_id is None:
-			in_device_id = self.in_device_id = pygame.midi.get_default_input_id()
-		if out_device_id is None:
-			out_device_id = self.out_device_id = pygame.midi.get_default_output_id()
+	#define MODE_STATIC		0
+	#define MODE_PULSING	1
+	#define MODE_ROTATING	2
+	#define MODE_SWAYING	4
+	#define MODE_THIRDCOLOR 8  //three colors or two colors...
+	def get_mode(self):
+		return abs( (self.buttons['pulse']) + (self.buttons['rotate'] << 1) + (self.buttons['sway'] << 2)) #+ abs( (thirdcolors)  << 3)   #why is this negative!??!
 
-		if (in_device_id is not None) and (out_device_id is not None):
-			print("Using input	id: %s" % in_device_id)
-			print("Using output id: %s" % out_device_id)
 
-			print("Setting MIDI device to in: %d out: %d." % (in_device_id, out_device_id) )
-			Settings.midi_in = self.midi_in = pygame.midi.Input( in_device_id )
-			Settings.midi_out = self.midi_out = pygame.midi.Output(out_device_id, 0)
 
+
+
+
+class LEDMusicController:
+
+	def __init__(self):
+		# audio_setup.init_audio()
+		# self.midi_reader = korg.KorgMidiReader()
+		self.midi = MIDI()
 
 
 	# Analyze the audio input and turn it into light (aka magic)
@@ -157,7 +149,7 @@ class AMK:
 		input = audio_setup.get_audio_input()
 		while True:
 			self.control_midi()
-			if Settings.mode_music:
+			if self.midi.buttons['music_mode_intensity'] or self.midi.buttons['music_mode_offset'] :
 				size, chunk = input.read()
 				if size > 0:
 					# Make the chunk even length if it isn't already
@@ -168,7 +160,10 @@ class AMK:
 					data = calculate_levels(chunk, audio_setup.Constants.SAMPLE_RATE, audio_setup.Constants.FREQUENCY_LIMITS)
 
 					# Interpret the data
-					self.convert_data_to_offset_packet(data)
+					self.convert_data_to_packet(data)
+			else:
+				# waste time so that we don't eat too much CPU
+				pygame.time.wait(1)
 
 
 
@@ -176,77 +171,87 @@ class AMK:
 	def analyze_audio_file_local(self, path):
 		print "path = " + path
 
-		# initial settings
-		Packet.knobs[2] = 166.0
-		Packet.knobs[3] = 0.0
-		Packet.knobs[4] = 254.0
-		Packet.knobs[5] = 0.0
-		Packet.knobs[6] = 248.0
+		# # initial settings
+		# self.midi.knobs['length']              = 10
+		# self.midi.knobs['gradient']            = 0
+		# self.midi.knobs['offset'  ]            = 127
+		# self.midi.knobs['minimum' ]            = 0
+		# self.midi.rgb[0][0]                    = 127
+		# self.midi.rgb[1][2]                    = 127
+		# self.midi.buttons['music_mode_offset'] = True
+
 
 		for chunk, sample_rate in read_musicfile_in_chunks(path, play_audio=True):
 			data = calculate_levels(chunk, sample_rate, audio_setup.Constants.FREQUENCY_LIMITS)
-			self.convert_data_to_intensity_packet(data)
+			self.convert_data_to_packet(data)
 			self.control_midi()
 
 
+	def create_packet(self, rgb):
+		packet = [int(self.midi.mode)]
+
+		packet.extend([int(self.midi.knobs['length'])])
+		packet.extend([int(self.midi.knobs['gradient'])])
+		packet.extend([int(self.midi.knobs['offset'])])
+		packet.extend([int(self.midi.knobs['FIVE'])])
+		packet.extend([int(self.midi.knobs['minimum'])])
+		packet.extend([int(self.midi.knobs['SEVEN'])])
+
+		packet.extend([int(item) for sublist in rgb for item in sublist])
+		return packet
+
 
 	# Stuff the packet and send it out over the network.
-	def update_lights(self, rgb, knobs):
+	def update_lights(self, rgb):
 		try:
-			t = [int(Packet.mode)]
-			t.extend([int(item) for item in knobs[2:8]])
-			t.extend([int(item/Packet.scale) for sublist in rgb for item in sublist])
-			Constants.SOCK.sendto(struct.pack('B' * len(t),*t),(Constants.LED_IP, Constants.LED_PORT))
+			packet = self.create_packet(rgb)
+			Constants.SOCK.sendto(struct.pack('B' * len(packet),*packet),(Constants.LED_IP, Constants.LED_PORT))
 		except Exception as e:
+			print("Exception in update_lights")
 			print(e)
 
 
-	# modify knob[4] : offset
-	# make value the max offset
-	# map between 0 and offset
-	# send offset to update lights
-	def convert_data_to_offset_packet(self, matrix):
-		stabilize.stabilize_light_intensities()
 
-		offset_matrix = [0] * len(matrix)
 
-		for col in range(len(matrix)):
-			#check the current possible offset min and max
-			val, offset_range = stabilize.check_if_val_within_intensity_ranges(matrix[col])
-
-			# Map the light values to be within the range of the Packet light intensities
-			offset_matrix[col] = self.scale(val, (offset_range.music_min_intensity, offset_range.music_max_intensity), (Constants.MIN_INTENSITY, Constants.MAX_INTENSITY))
-
-		mod_knob = 4
-		offset = self.scale(offset_matrix[0], (Constants.MIN_INTENSITY, Constants.MAX_INTENSITY), (int(Packet.knobs[6]/254. * Packet.knobs[mod_knob]), Packet.knobs[mod_knob]))
-		knobs = Packet.knobs[:]
-		knobs[mod_knob] = offset
-		self.update_lights(Packet.rgb, knobs)
-		print(knobs)
-
-	def convert_data_to_intensity_packet(self, matrix):
+	def convert_data_to_packet(self, matrix):
 		# Dynamically update the possible light intensity range
 		stabilize.stabilize_light_intensities()
 
-		intensity_matrix = [0] * len(matrix)
+		converted_matrix = [0] * len(matrix)
 
 		for col in range(len(matrix)):
 			# check the current possible intensity min and max
 			val, lights_range = stabilize.check_if_val_within_intensity_ranges(matrix[col])
 
-			# Map the light values to be within the range of the Packet light intensities
-			intensity_matrix[col] = self.scale(val, (lights_range.music_min_intensity, lights_range.music_max_intensity), (Constants.MIN_INTENSITY, Constants.MAX_INTENSITY))
+			if self.midi.buttons['music_mode_intensity'] or self.midi.buttons['music_mode_offset'] :
+				# Map the light values to be within the range of the MIDI light intensities
+				converted_matrix[col] = self.scale(val, (lights_range.music_min_intensity, lights_range.music_max_intensity), (Constants.MIN_INTENSITY, Constants.MAX_INTENSITY))
 
-		rgb = [x[:] for x in [[0]*3]*3]
+		if self.midi.buttons['music_mode_intensity']:
+			rgb = [x[:] for x in [[0]*3]*3]
 
-		# Scale the Packet value to be within the slider ranges
-		for i in range(len(intensity_matrix)):
-			for j in range(len(Packet.rgb[i])):
-				rgb[i][j] = self.scale(intensity_matrix[i], (Constants.MIN_INTENSITY, Constants.MAX_INTENSITY), (int(Packet.knobs[6]/254. * Packet.rgb[i][j]), Packet.rgb[i][j]))
-				#print("knob %d %d" % (Packet.knobs[6], int(Packet.knobs[6]/254. * Packet.rgb[i][j])))
+			# Scale the MIDI value to be within the slider ranges
+			for i in range(len(converted_matrix)):
+				for j in range(len(self.midi.rgb[i])):
+					rgb[i][j] = self.scale(converted_matrix[i], (Constants.MIN_INTENSITY, Constants.MAX_INTENSITY), (int(self.midi.knobs['minimum']/127. * self.midi.rgb[i][j]), self.midi.rgb[i][j]))
+					#print("knob %d %d" % (self.midi.midi_reader.knobs[6], int(self.midi.midi_reader.knobs[6]/254. * self.midi.midi_reader.rgb[i][j])))
 
-		# update the lights from the matrix
-		self.update_lights(rgb, Packet.knobs)
+			# This works fine, too
+			# self.midi.rgb = rgb
+			# self.update_lights(self.midi.rgb)
+
+			
+			# update the lights from the matrix
+			self.update_lights(rgb)
+
+		if self.midi.buttons['music_mode_offset']:
+			# map between minimum and offset
+			offset = self.scale(converted_matrix[0], (Constants.MIN_INTENSITY, Constants.MAX_INTENSITY), (int(self.midi.knobs['minimum']/127. * self.midi.knobs['offset']), self.midi.knobs['offset']))
+			self.midi.knobs['offset'] = offset
+
+			# send offset to update lights
+			self.update_lights(self.midi.rgb)
+
 
 	# Scale the given value from the scale of src to the scale of dst.
 	def scale(self, val, src, dst):
@@ -273,150 +278,28 @@ class AMK:
 
 
 
-	# TODO: this really needs to be broken up
 	def control_midi(self):
-		# Look for midi events
-		if Settings.midi_in.poll():
-			midi_events = Settings.midi_in.read(100)
-			midi_evs = pygame.midi.midis2events(midi_events, Settings.midi_in.device_id)
-			changed = False
+		if self.midi.read_events():
+			# update the lights with the new settings
+			self.update_lights(self.midi.rgb)
+			
 
-			for me in midi_evs:
-
-				if me.data1 == 0x00: # and me.data1 <= 0x01: #slider 0
-					Settings.volume = me.data2
-					self.set_volume(Settings.volume, Packet.knobs[0])
-
-
-				#process slider event
-				if me.data1 >= 0x00 and me.data1 <= 0x07 and me.data1 >= 0x02:
-					#sliders[me.data1] = me.data2 * 2
-					Packet.rgb[int((me.data1-2)/3)][(me.data1-2)%3] = me.data2 * 2	#sliders 2-4 are Packet.rgb[1] sliders 5-7 are Packet.rgb[2]
-					Settings.intensity = (sum(Packet.rgb[0]) + sum(Packet.rgb[1]) ) / 2 #/ 6 #average Settings.intensity of lighting, used for calculating Settings.intensity of third color.
-					changed = True
-					#so really we should update the Settings.intensity of the third color here... but it's actually kind of a nice way to be able to adjust it.
-
-				#knob event
-				if me.data1 >= 0x10 and me.data1 <= 0x17:
-					Packet.knobs[me.data1 - 0x10] = me.data2 * 2
-					if me.data1 - 0x10 >= 2:
-						changed = True
-					elif me.data1 == 0x10:
-						self.set_volume(Settings.volume, Packet.knobs[0])
-
-				if me.data1 >= 0x20 and me.data1 <= 0x47 and me.data2 == 127:  #these are actually triggered on both button up and button down, so you have to check for the 127 (which is on button down, I believe)
-					idx = (me.data1 >> 4) - 2;
-					if (me.data1 & 0x07 == 7):
-						#idx = (me.data1 >> 4) - 2;
-						Settings.buttons[idx] = ~Settings.buttons[idx];
-						self.light(me.data1, Settings.buttons[idx])
-						if Settings.buttons[idx]:
-							if idx == 1:  #can't rotate and sway at the same time...
-								Settings.buttons[2] = False
-								self.light(0x37, Settings.buttons[1])
-								self.light(0x47, Settings.buttons[2])
-							elif idx == 2:
-								Settings.buttons[1] = False
-								self.light(0x37, Settings.buttons[1])
-								self.light(0x47, Settings.buttons[2])
-						changed = True
-					#elif me.data1 == 0x26 and me.data2 == 127:
-					elif (me.data1 & 0x06 == 6): #6th button row.  We use these to build third color.
-						#Settings.buttons[3] = ~Settings.buttons[3]
-						Settings.thirdcolors[idx] = ~Settings.thirdcolors[idx]
-						self.light(me.data1, Settings.thirdcolors[idx])
-						numlit = sum(Settings.thirdcolors)
-						if numlit:
-							for i in range(3):
-								Packet.rgb[2][i] = Settings.thirdcolors[i]*Settings.intensity/numlit #split Settings.intensity across the number of colors (Packet.rgb) enabled.
-								if Packet.rgb[2][i] > 255:	# if one of the first two colors is full Settings.intensity white, we can't match the Settings.intensity.
-									Packet.rgb[2][i] = 255
-						audio_setup.update_frequency_limits_with_columns(3 if any(Settings.thirdcolors) else 2)
-						changed = True
-					elif (me.data1 & 0x05 == 5):
-						if idx == 0:
-							if Packet.scale == 4:
-								Packet.scale = 1
-								self.light(me.data1, False)
-							else:
-								Packet.scale = 4
-								self.light(me.data1, True)
-							changed = True
-						if idx == 1:  #music_mode
-							Settings.mode_music = not Settings.mode_music
-							self.light(me.data1, Settings.mode_music)
-							changed = True
-					elif (me.data1 & 0x07 == 0x00): #first row of Settings.buttons
-						print("button 0")
-						#set the input
-						if idx == 0:
-							Settings.aux_in = ~Settings.aux_in
-							self.light(me.data1, Settings.aux_in)
-						#set the lr stuff.
-						elif idx == 1:
-							Settings.lr_swap = ~Settings.lr_swap
-							self.light(me.data1, Settings.lr_swap)
-
-						audio_setup.set_audio(Settings.aux_in, Settings.lr_swap)
-
-
-					else:
-						if (Packet.mode > 0 or Packet.scale != 1):
-							changed = True
-						Packet.mode = 0
-						Packet.scale = 1
-						Settings.buttons = [False]*3
-						Settings.thirdcolors = [False]*3
-						Packet.rgb[2] = [0]*3;
-						self.all_off()
-						self.light(0x20, Settings.aux_in) #relight the audio keys if they need to be
-						self.light(0x30, Settings.lr_swap)
-					Packet.mode = abs( (Settings.buttons[0]) + (Settings.buttons[1] << 1) + (Settings.buttons[2] << 2)) + abs( any(Settings.thirdcolors)  << 3)   #why is this negative!??!
-
-				if changed and not Settings.mode_music: #me.data1 >= 2 and me.data1 <=7:
-					self.update_lights(Packet.rgb, Packet.knobs)
-					# pass
 
 	def MainLoop(self):
+		# Play local file if song path is given as argument
 		if len(sys.argv) > 1:
 			path = sys.argv[1]
 			self.analyze_audio_file_local(path)
 
 		self.analyze_line_in()
 
-		# Once song finishes. Default to checking midi controller
-		# while True:
-		#	# waste time so that we don't eat too much CPU
-		#	pygame.time.wait(1)
-		#	self.control_midi()
-
-
-
-
-
-def test_mon():
-	print("got usb event")
-
-def monitor_thread(am):
-	print("Starting USB Monitoring thread...")
-	#monitor USB devices. reset the midi controller if anything is plugged in.
-	context = Context()
-	monitor = Monitor.from_netlink(context)
-
-	monitor.filter_by(subsystem='usb')
-	observer = MonitorObserver(monitor)
-
-	observer.connect('device-event', test_mon) #am.set_midi_device)
-	monitor.start()
-
-	#glib.MainLoop().run() #this thread is idle unless there is a usb event.
 
 if __name__ == '__main__':
-	am = AMK()
+	
+	lmc = LEDMusicController()
 	#thread.start_new_thread(monitor_thread, (am,)) #... what? this breaks it, no matter what the thread is...
 	try:
-		am.setup()
-		am.MainLoop()
+		lmc.MainLoop()
 	except (KeyboardInterrupt, SystemExit):  #these aren't caught with exceptions...
 		print("except (KeyboardInterrupt, SystemExit):")
 		os._exit(0)
