@@ -18,13 +18,13 @@ class KorgMidiReader:
 	sliders    = [0]*8
 	buttons    = [[False]*3 for x in range(8)]  #stupid python multi-dim array init
 	buttons_en = [[False, False, False],
-					[False, False, False],
-					[False, False, False],
-					[False, False, False],
-					[False, False, False],
-					[True,True,True],
-					[True,True,True],
-					[True,True,True]] #only enable some buttons
+				  [False, False, False],
+				  [False, False, False],
+				  [False, False, False],
+				  [False, False, False],
+				  [True, True, True],
+				  [True, False, False],
+				  [True,True,True]] #only enable some buttons
 	
 	def __init__(self):
 		pygame.init()

@@ -8,7 +8,7 @@ class Constants:
 	COLUMNS          = 2
 	SAMPLE_RATE      = 44100
 	NUM_CHANNELS     = 2
-	PERIOD_SIZE      = 2048
+	PERIOD_SIZE      = 1024 
 	FREQUENCY_LIMITS = calculate_column_frequency(200, 10000, COLUMNS)
 
 def set_audio(aux_in, lr_swap):

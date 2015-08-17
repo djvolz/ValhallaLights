@@ -43,7 +43,8 @@ from library.music import calculate_levels, read_musicfile_in_chunks
 # 0x30 - 0x37: M buttons
 # 0x40 - 0x47: R buttons
 
-#TODO: add third color back in
+#TODO: third color needs to be scaled
+
 #TODO: fix find nanokontrol and fix setting IP and Port above...
 #TODO: add sound recording and sending to a different port #this looks like a good starting point: http://people.csail.mit.edu/hubert/pyaudio/docs/ #http://stackoverflow.com/questions/18406570/python-record-audio-on-detected-sound	#http://stackoverflow.com/questions/892199/detect-record-audio-in-python/892293#892293 #http://stackoverflow.com/questions/1797631/recognising-tone-of-the-audio #https://docs.python.org/2/library/audioop.html #https://wiki.python.org/moin/PythonInMusic #http://www.codeproject.com/Articles/32172/FFT-Guitar-Tuner #http://stackoverflow.com/questions/19079429/using-pyaudio-libraries-in-python-linux (select input)
 #TODO: add multiple "strips" or "domains"?
@@ -58,20 +59,11 @@ class Constants:
 	LED_PORT		 = 5252
 	# LED CONSTANTS
 	MIN_INTENSITY	 = 0.0
-	MAX_INTENSITY	 = 255.0
+	MAX_INTENSITY	 = 127.0
 
 class MIDI:
-	scale = 1
 	mode  = 0
 	rgb = [x[:] for x in [[0]*3]*3] #I really hate python sometimes...
-	knobs = {'ZERO': 	 -1,
-			 'ONE': 	 -1,
-			 'length': 	 -1,
-			 'gradient': -1,
-			 'offset': 	 -1,
-			 'FIVE': 	 -1,
-			 'minimum':	 -1,
-			 'SEVEN': 	 -1}
 	buttons = {'scale': 	 		   False,
 			   'music_mode_intensity': False,
 			   'music_mode_offset':    False,
@@ -88,26 +80,41 @@ class MIDI:
 		self.midi_reader = korg.KorgMidiReader()
 
 	def read_events(self):
-		self.read_knobs()
-		self.read_rgb()
 		self.read_buttons()
+		self.read_settings()
+		self.read_rgb()
+		self.read_scale()
 		return self.midi_reader.read_events()
 
 	def read_rgb(self):
 		# translate the slider data into rgb values for packet
-		self.rgb[0] = [int(item) for item in self.midi_reader.sliders[2:5]]
-		self.rgb[1] = [int(item) for item in self.midi_reader.sliders[5:8]]
-		self.rgb[2] = [0]*3 #self.buttons[6]
+		self.rgb[0]    = [int(item) for item in self.midi_reader.sliders[2:5]]
+		self.rgb[1]    = [int(item) for item in self.midi_reader.sliders[5:8]]
+		
+		# check the first three knobs for third color if the button is enabled
+		if self.buttons['third_color']:
+			for i in range(3):
+				self.rgb[2][i] = self.midi_reader.knobs[i]
+		# if button isn't pressed, no third color. knobs[0-2] go unused
+		else:
+			self.rgb[2] = [0]*3
 
-	def read_knobs(self):
-		self.knobs = {'ZERO': self.midi_reader.knobs[0],
-				 'ONE': self.midi_reader.knobs[1],
-				 'length': self.midi_reader.knobs[2],
-				 'gradient': self.midi_reader.knobs[3],
-				 'offset': self.midi_reader.knobs[4],
-				 'FIVE': self.midi_reader.knobs[5],
-				 'minimum': self.midi_reader.knobs[6],
-				 'SEVEN': self.midi_reader.knobs[7]}
+
+
+
+	def read_settings(self):
+		self.settings = {'red':     self.midi_reader.knobs[0],
+						 'green':     self.midi_reader.knobs[1],
+						 'blue':     self.midi_reader.knobs[2],
+						 'UNUSED3':     self.midi_reader.knobs[3],
+						 'offset':      self.midi_reader.knobs[4],
+						 'sway_speed':  self.midi_reader.knobs[5],
+						 'minimum':     self.midi_reader.knobs[6],
+						 'pulse_speed': self.midi_reader.knobs[7],
+
+						 'length':      self.midi_reader.sliders[0],
+						 'gradient':    self.midi_reader.sliders[1],
+						 }
 	def read_buttons(self):
 		self.buttons = {'scale': 	 		    self.midi_reader.buttons[5][0],
 						'music_mode_intensity': self.midi_reader.buttons[5][1],
@@ -115,12 +122,10 @@ class MIDI:
 						'pulse': 			    self.midi_reader.buttons[7][0],
 						'rotate': 	 		    self.midi_reader.buttons[7][1],
 						'sway':				    self.midi_reader.buttons[7][2],
-						'red':				    self.midi_reader.buttons[6][0],
-						'green': 	 		    self.midi_reader.buttons[6][1],
-						'blue':			    	self.midi_reader.buttons[6][2]
+						'third_color':			self.midi_reader.buttons[6][0],
 						}
 
-
+		audio_setup.update_frequency_limits_with_columns(3 if self.buttons['third_color'] else 2)
 		self.mode = self.get_mode()
 
 	#define MODE_STATIC		0
@@ -129,7 +134,13 @@ class MIDI:
 	#define MODE_SWAYING	4
 	#define MODE_THIRDCOLOR 8  //three colors or two colors...
 	def get_mode(self):
-		return abs( (self.buttons['pulse']) + (self.buttons['rotate'] << 1) + (self.buttons['sway'] << 2)) #+ abs( (thirdcolors)  << 3)   #why is this negative!??!
+		return abs( (self.buttons['pulse']) + (self.buttons['rotate'] << 1) + (self.buttons['sway'] << 2)) + abs(self.buttons['third_color']  << 3)   #why is this negative!??!
+
+	def read_scale(self):
+		if self.buttons['scale']:
+			self.scale = 4
+		else:
+			self.scale = 1
 
 
 
@@ -139,8 +150,7 @@ class MIDI:
 class LEDMusicController:
 
 	def __init__(self):
-		# audio_setup.init_audio()
-		# self.midi_reader = korg.KorgMidiReader()
+		audio_setup.init_audio()
 		self.midi = MIDI()
 
 
@@ -171,47 +181,61 @@ class LEDMusicController:
 	def analyze_audio_file_local(self, path):
 		print "path = " + path
 
-		# # initial settings
-		# self.midi.knobs['length']              = 10
-		# self.midi.knobs['gradient']            = 0
-		# self.midi.knobs['offset'  ]            = 127
-		# self.midi.knobs['minimum' ]            = 0
-		# self.midi.rgb[0][0]                    = 127
-		# self.midi.rgb[1][2]                    = 127
-		# self.midi.buttons['music_mode_offset'] = True
-
-
-		for chunk, sample_rate in read_musicfile_in_chunks(path, play_audio=True):
+		for chunk, sample_rate in read_musicfile_in_chunks(path, play_audio=False):
 			data = calculate_levels(chunk, sample_rate, audio_setup.Constants.FREQUENCY_LIMITS)
 			self.convert_data_to_packet(data)
 			self.control_midi()
 
 
-	def create_packet(self, rgb):
+	def create_packet(self):
+		# Packet structure (received by beaglebone)
+		#  0: mode
+		#  1: length
+		#  2: gradient
+		#  3: offset
+		#  4: sway_speed
+		#  5: minimum
+		#  6: pulse_speed
+		#  7: b
+		#  8: r
+		#  9: g
+		# 10: b
+		# 11: r
+		# 12: g
+		# 13: b
+		# 14: r
+		# 15: g
+
+		# mode
 		packet = [int(self.midi.mode)]
 
-		packet.extend([int(self.midi.knobs['length'])])
-		packet.extend([int(self.midi.knobs['gradient'])])
-		packet.extend([int(self.midi.knobs['offset'])])
-		packet.extend([int(self.midi.knobs['FIVE'])])
-		packet.extend([int(self.midi.knobs['minimum'])])
-		packet.extend([int(self.midi.knobs['SEVEN'])])
+		# settings
+		packet.extend([int(self.midi.settings['length'])])
+		packet.extend([int(self.midi.settings['gradient'])])
+		packet.extend([int(self.midi.settings['offset'])])
+		packet.extend([int(self.midi.settings['sway_speed'])])
+		packet.extend([int(self.midi.settings['minimum'])])
+		packet.extend([int(self.midi.settings['pulse_speed'])])
 
-		packet.extend([int(item) for sublist in rgb for item in sublist])
+		# rgb, rgb, rgb
+		packet.extend([int(item/self.midi.scale) for sublist in self.midi.rgb for item in sublist])
 		return packet
 
 
 	# Stuff the packet and send it out over the network.
-	def update_lights(self, rgb):
+	def update_lights(self):
 		try:
-			packet = self.create_packet(rgb)
+			packet = self.create_packet()
 			Constants.SOCK.sendto(struct.pack('B' * len(packet),*packet),(Constants.LED_IP, Constants.LED_PORT))
 		except Exception as e:
 			print("Exception in update_lights")
 			print(e)
 
 
-
+	def control_midi(self):
+		if self.midi.read_events():
+			# update the lights with the new settings
+			self.update_lights()
 
 	def convert_data_to_packet(self, matrix):
 		# Dynamically update the possible light intensity range
@@ -221,73 +245,67 @@ class LEDMusicController:
 
 		for col in range(len(matrix)):
 			# check the current possible intensity min and max
-			val, lights_range = stabilize.check_if_val_within_intensity_ranges(matrix[col])
+			val, lights_range = stabilize.check_if_val_within_range(matrix[col])
 
-			if self.midi.buttons['music_mode_intensity'] or self.midi.buttons['music_mode_offset'] :
-				# Map the light values to be within the range of the MIDI light intensities
-				converted_matrix[col] = self.scale(val, (lights_range.music_min_intensity, lights_range.music_max_intensity), (Constants.MIN_INTENSITY, Constants.MAX_INTENSITY))
+			# Map the light values to be within the range of the MIDI light intensities
+			converted_matrix[col] = stabilize.scale(val, (lights_range.min_intensity, lights_range.max_intensity), (Constants.MIN_INTENSITY, Constants.MAX_INTENSITY))
 
+		# Music Mode INTENSITY
 		if self.midi.buttons['music_mode_intensity']:
 			rgb = [x[:] for x in [[0]*3]*3]
 
 			# Scale the MIDI value to be within the slider ranges
 			for i in range(len(converted_matrix)):
 				for j in range(len(self.midi.rgb[i])):
-					rgb[i][j] = self.scale(converted_matrix[i], (Constants.MIN_INTENSITY, Constants.MAX_INTENSITY), (int(self.midi.knobs['minimum']/127. * self.midi.rgb[i][j]), self.midi.rgb[i][j]))
+					rgb[i][j] = stabilize.scale(converted_matrix[i], (Constants.MIN_INTENSITY, Constants.MAX_INTENSITY), (int(self.midi.settings['minimum']/Constants.MAX_INTENSITY * self.midi.rgb[i][j]), self.midi.rgb[i][j]))
 					#print("knob %d %d" % (self.midi.midi_reader.knobs[6], int(self.midi.midi_reader.knobs[6]/254. * self.midi.midi_reader.rgb[i][j])))
 
-			# This works fine, too
-			# self.midi.rgb = rgb
-			# self.update_lights(self.midi.rgb)
+			# update lights with new intensities
+			self.midi.rgb = rgb
+			self.update_lights()
 
-			
-			# update the lights from the matrix
-			self.update_lights(rgb)
-
+		# Music Mode OFFSET
 		if self.midi.buttons['music_mode_offset']:
 			# map between minimum and offset
-			offset = self.scale(converted_matrix[0], (Constants.MIN_INTENSITY, Constants.MAX_INTENSITY), (int(self.midi.knobs['minimum']/127. * self.midi.knobs['offset']), self.midi.knobs['offset']))
-			self.midi.knobs['offset'] = offset
+			offset = stabilize.scale(converted_matrix[0], (Constants.MIN_INTENSITY, Constants.MAX_INTENSITY), (int(self.midi.settings['minimum']/Constants.MAX_INTENSITY * self.midi.settings['offset']), self.midi.settings['offset']))
+			self.midi.settings['offset'] = offset
 
-			# send offset to update lights
-			self.update_lights(self.midi.rgb)
-
-
-	# Scale the given value from the scale of src to the scale of dst.
-	def scale(self, val, src, dst):
-		return ((val - src[0]) / (src[1]-src[0])) * (dst[1]-dst[0]) + dst[0]
+			# update lights with new offset
+			self.update_lights()
 
 
-	#ugly... volume is 0-127, balance is 0-254
+
+
+	#ugly... volume is 0-Constants.MAX_INTENSITY, balance is 0-254
 	def set_volume(self, volume, balance):
 		#currently the balance is stored in knobs of 1... we can just keep it there... (note its scaled up to 254)
 		#we want it where if it's centered (with some hysteresis) then both volumes are at 100%, then they fade from there.
 		if balance > 120:
-			volumel = 22 * volume/127
+			volumel = 22 * volume/Constants.MAX_INTENSITY
 		else:
-			volumel = 22 * balance/127 * volume/127
+			volumel = 22 * balance/Constants.MAX_INTENSITY * volume/Constants.MAX_INTENSITY
 
 		if balance < 134:
-			volumer = 33 * volume/127
+			volumer = 33 * volume/Constants.MAX_INTENSITY
 		else:
-			volumer = 33 * (1-(254-balance)/127) * volume/127
+			volumer = 33 * (1-(254-balance)/Constants.MAX_INTENSITY) * volume/Constants.MAX_INTENSITY
 
 		print([volumel, volumer])
 		#would this be any faster?
 		#os.system("amixer -Dhw:0 cset name='HPOUT1L Input 1 Volume' " + str(volumer) + "; amixer -Dhw:0 cset name='HPOUT1R Input 1 Volume' " + str(volumer))
-
-
-
-	def control_midi(self):
-		if self.midi.read_events():
-			# update the lights with the new settings
-			self.update_lights(self.midi.rgb)
 			
-
 
 	def MainLoop(self):
 		# Play local file if song path is given as argument
 		if len(sys.argv) > 1:
+			# # initial settings
+			# self.midi.settings['length']              = 10
+			# self.midi.settings['gradient']            = 0
+			# self.midi.settings['offset'  ]            = Constants.MAX_INTENSITY
+			# self.midi.settings['minimum' ]            = 0
+			# self.midi.rgb[0][0]                    = Constants.MAX_INTENSITY
+			# self.midi.rgb[1][2]                    = Constants.MAX_INTENSITY
+			# self.midi.buttons['music_mode_offset'] = True
 			path = sys.argv[1]
 			self.analyze_audio_file_local(path)
 
