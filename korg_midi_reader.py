@@ -17,7 +17,7 @@ class KorgMidiReader:
 	knobs      = [0]*8
 	sliders    = [0]*8
 	buttons    = [[False]*3 for x in range(8)]  #stupid python multi-dim array init
-	buttons_en = [[False, False, False],
+	buttons_en = [[True, True, True],
 				  [False, False, False],
 				  [False, False, False],
 				  [False, False, False],
@@ -27,7 +27,7 @@ class KorgMidiReader:
 				  [True,True,True]] #only enable some buttons
 	
 	def __init__(self):
-		pygame.init()
+		#pygame.init()
 		pygame.midi.init()
 		self._set_midi_device()
 		self._all_off()	#make sure nothing is lit.
