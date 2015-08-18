@@ -27,7 +27,7 @@ class KorgMidiReader:
 				  [True,True,True]] #only enable some buttons
 	
 	def __init__(self):
-		pygame.init()
+		#pygame.init()
 		pygame.midi.init()
 		self._set_midi_device()
 		self._all_off()	#make sure nothing is lit.

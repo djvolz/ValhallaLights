@@ -3,6 +3,7 @@ import logging
 import alsaaudio as aa
 import numpy as np
 import urllib2
+import time
 
 from decoder import decoder 
 
@@ -44,7 +45,7 @@ def read_musicfile_in_chunks(path, chunk_size=CHUNK_SIZE, play_audio=True):
     num_channels = musicfile.getnchannels()
 
     if play_audio:
-        output = aa.PCM(aa.PCM_PLAYBACK, aa.PCM_NORMAL)
+        output = aa.PCM(aa.PCM_PLAYBACK, aa.PCM_NORMAL, 'sndrpiwsp')
         output.setchannels(num_channels)
         output.setrate(sample_rate)
         output.setformat(aa.PCM_FORMAT_S16_LE)

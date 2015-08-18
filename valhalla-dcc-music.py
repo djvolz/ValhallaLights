@@ -2,28 +2,31 @@
 # Read MIDI controller sliders and send 16 byte UDP packets to the Valhalla Dual Color Server to update LEDs.
 
 import os, sys
-import pygame
-import pygame.midi
-import pygame.fastevent
+# import pygame
+# import pygame.midi
+# import pygame.fastevent
 import array
 import ctypes
 import math
 from os import popen
 from array import array
-from pygame.locals import *
+# from pygame.locals import *
 import socket
 import struct
+import time
 
-from pyudev import Context, Monitor
-import pyudev
-import thread
+#from pyudev import Context, Monitor
+#import pyudev
+#import thread
 
-from pygame import mixer # Load the required library
+# from pygame import mixer # Load the required library
 
 import stabilize
 import audio_setup
 import korg_midi_reader as korg
+#import korg_dummy as korg
 from library.music import calculate_levels, read_musicfile_in_chunks
+import alsaaudio as aa
 
 
 #try:
@@ -43,7 +46,6 @@ from library.music import calculate_levels, read_musicfile_in_chunks
 # 0x30 - 0x37: M buttons
 # 0x40 - 0x47: R buttons
 
-#TODO: third color needs to be scaled
 
 #TODO: fix find nanokontrol and fix setting IP and Port above...
 #TODO: add sound recording and sending to a different port #this looks like a good starting point: http://people.csail.mit.edu/hubert/pyaudio/docs/ #http://stackoverflow.com/questions/18406570/python-record-audio-on-detected-sound	#http://stackoverflow.com/questions/892199/detect-record-audio-in-python/892293#892293 #http://stackoverflow.com/questions/1797631/recognising-tone-of-the-audio #https://docs.python.org/2/library/audioop.html #https://wiki.python.org/moin/PythonInMusic #http://www.codeproject.com/Articles/32172/FFT-Guitar-Tuner #http://stackoverflow.com/questions/19079429/using-pyaudio-libraries-in-python-linux (select input)
@@ -60,6 +62,7 @@ class Constants:
 	# LED CONSTANTS
 	MIN_INTENSITY	 = 0.0
 	MAX_INTENSITY	 = 127.0
+	MIDI_MAX	 = 127.0
 
 class MIDI:
 	mode  = 0
@@ -76,15 +79,16 @@ class MIDI:
 			   }
 
 	def __init__(self):
-		audio_setup.init_audio()
+		#audio_setup.init_audio()
 		self.midi_reader = korg.KorgMidiReader()
 
 	def read_events(self):
+		changed = self.midi_reader.read_events()
 		self.read_buttons()
 		self.read_settings()
 		self.read_rgb()
 		self.read_scale()
-		return self.midi_reader.read_events()
+		return changed
 
 	def read_rgb(self):
 		# translate the slider data into rgb values for packet
@@ -106,7 +110,7 @@ class MIDI:
 		self.settings = {'red':     self.midi_reader.knobs[0],
 						 'green':     self.midi_reader.knobs[1],
 						 'blue':     self.midi_reader.knobs[2],
-						 'UNUSED3':     self.midi_reader.knobs[3],
+						 'volume':     self.midi_reader.knobs[3],
 						 'offset':      self.midi_reader.knobs[4],
 						 'sway_speed':  self.midi_reader.knobs[5],
 						 'minimum':     self.midi_reader.knobs[6],
@@ -151,16 +155,20 @@ class LEDMusicController:
 
 	def __init__(self):
 		audio_setup.init_audio()
+
+		#self.input needs to be initialized before pygame
+		self.input = audio_setup.get_audio_input()
+
 		self.midi = MIDI()
 
 
 	# Analyze the audio input and turn it into light (aka magic)
 	def analyze_line_in(self):
-		input = audio_setup.get_audio_input()
 		while True:
-			self.control_midi()
+			#self.control_midi()
+			changed = self.midi.read_events()
 			if self.midi.buttons['music_mode_intensity'] or self.midi.buttons['music_mode_offset'] :
-				size, chunk = input.read()
+				size, chunk = self.input.read()
 				if size > 0:
 					# Make the chunk even length if it isn't already
 					L = (len(chunk)/2 * 2)
@@ -168,12 +176,16 @@ class LEDMusicController:
 
 					# Calculate the levels
 					data = calculate_levels(chunk, audio_setup.Constants.SAMPLE_RATE, audio_setup.Constants.FREQUENCY_LIMITS)
-
 					# Interpret the data
 					self.convert_data_to_packet(data)
+			elif changed:
+				self.update_lights()
 			else:
 				# waste time so that we don't eat too much CPU
-				pygame.time.wait(1)
+				#pygame.time.wait(1)
+				time.sleep(.005)
+
+			self.update_volume()
 
 
 
@@ -181,10 +193,10 @@ class LEDMusicController:
 	def analyze_audio_file_local(self, path):
 		print "path = " + path
 
-		for chunk, sample_rate in read_musicfile_in_chunks(path, play_audio=False):
+		for chunk, sample_rate in read_musicfile_in_chunks(path, play_audio=True):
 			data = calculate_levels(chunk, sample_rate, audio_setup.Constants.FREQUENCY_LIMITS)
 			self.convert_data_to_packet(data)
-			self.control_midi()
+			#self.control_midi()
 
 
 	def create_packet(self):
@@ -231,12 +243,12 @@ class LEDMusicController:
 			print("Exception in update_lights")
 			print(e)
 
-
+			'''
 	def control_midi(self):
 		if self.midi.read_events():
 			# update the lights with the new settings
 			self.update_lights()
-
+	'''
 	def convert_data_to_packet(self, matrix):
 		# Dynamically update the possible light intensity range
 		stabilize.stabilize_light_intensities()
@@ -277,25 +289,37 @@ class LEDMusicController:
 
 
 	#ugly... volume is 0-Constants.MAX_INTENSITY, balance is 0-254
-	def set_volume(self, volume, balance):
+	def update_volume(self):
 		#currently the balance is stored in knobs of 1... we can just keep it there... (note its scaled up to 254)
 		#we want it where if it's centered (with some hysteresis) then both volumes are at 100%, then they fade from there.
+		balance = 127
+		volume = self.midi.settings['volume']
+
 		if balance > 120:
-			volumel = 22 * volume/Constants.MAX_INTENSITY
+			volumel = 22 * volume/Constants.MIDI_MAX
 		else:
-			volumel = 22 * balance/Constants.MAX_INTENSITY * volume/Constants.MAX_INTENSITY
+			volumel = 22 * balance/Constants.MIDI_MAX * volume/Constants.MIDI_MAX
 
 		if balance < 134:
-			volumer = 33 * volume/Constants.MAX_INTENSITY
+			volumer = 33 * volume/Constants.MIDI_MAX
 		else:
-			volumer = 33 * (1-(254-balance)/Constants.MAX_INTENSITY) * volume/Constants.MAX_INTENSITY
+			volumer = 33 * (1-(254-balance)/Constants.MIDI_MAX) * volume/Constants.MIDI_MAX
+		
+		volumer = int(volumer)
+		volumel = int(volumel)
 
+		#aa.Mixer('HPOUT2 Digital').setvolume(volumel)
+		#aa.Mixer('HPOUT1 Digital').setvolume(volumer)
+		#aa.Mixer('HPOUT2L Input 1').setvolume(volumel)
+		#aa.Mixer('HPOUT2R Input 1').setvolume(volumel)
+		#aa.Mixer('HPOUT1L Input 1').setvolume(volumer)
+		#aa.Mixer('HPOUT1R Input 1').setvolume(volumer)
 		print([volumel, volumer])
 		#would this be any faster?
-		#os.system("amixer -Dhw:0 cset name='HPOUT1L Input 1 Volume' " + str(volumer) + "; amixer -Dhw:0 cset name='HPOUT1R Input 1 Volume' " + str(volumer))
+		os.system("amixer -q -Dhw:sndrpiwsp cset name='HPOUT2L Input 1 Volume' " + str(volumer) + "; amixer -q -Dhw:sndrpiwsp cset name='HPOUT2R Input 1 Volume' " + str(volumer))
 			
 
-	def MainLoop(self):
+	def run(self):
 		# Play local file if song path is given as argument
 		if len(sys.argv) > 1:
 			# # initial settings
@@ -317,7 +341,7 @@ if __name__ == '__main__':
 	lmc = LEDMusicController()
 	#thread.start_new_thread(monitor_thread, (am,)) #... what? this breaks it, no matter what the thread is...
 	try:
-		lmc.MainLoop()
+		lmc.run()
 	except (KeyboardInterrupt, SystemExit):  #these aren't caught with exceptions...
 		print("except (KeyboardInterrupt, SystemExit):")
 		os._exit(0)
