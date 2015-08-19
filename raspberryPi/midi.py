@@ -140,7 +140,6 @@ class MIDI:
 	# (convenience mode for music preset)
 	def init_intensity_preset(self):
 		# initial settings
-		self.midi_reader.buttons[0][1] = False
 		self.midi_reader.sliders[0]    = 64 #length
 		self.midi_reader.knobs[4]      = Constants.MAX_INTENSITY #offset
 		self.midi_reader.knobs[6]      = 0 # minimum

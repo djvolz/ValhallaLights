@@ -1,3 +1,11 @@
+# Music Analysis
+# Music analyzer including optimized FFT methods 
+# from various lights projects from across the internet 
+#
+# Author: Todd Giles (todd@lightshowpi.com)
+# Author: Scott Driscoll
+# Author: djvolz    8/19/15
+
 import logging
 
 import alsaaudio as aa
