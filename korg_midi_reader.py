@@ -22,20 +22,26 @@ class KorgMidiReader:
 	knobs      = [0]*8
 	sliders    = [0]*8
 	buttons    = [[False]*3 for x in range(8)]  #stupid python multi-dim array init
-	buttons_en = [[True, True, True],
-				  [False, False, False],
-				  [False, False, False],
-				  [False, False, False],
-				  [False, False, False],
-				  [True, True, True],
-				  [True, False, False],
-				  [True,True,True]] #only enable some buttons
+	# buttons_en = [[True, True, True],
+	# 			  [False, False, False],
+	# 			  [False, False, False],
+	# 			  [False, False, False],
+	# 			  [False, False, False],
+	# 			  [True, True, True],
+	# 			  [True, False, False],
+	# 			  [True,True,True]] #only enable some buttons
+	buttons    = [[False]*3 for x in range(8)]  #stupid python multi-dim array init
 	
-	def __init__(self):
+	# def __init__(self):
+	def __init__(self, buttons_en=None, buttons_exclusive=None):
 		#pygame.init()
 		pygame.midi.init()
 		self._set_midi_device()
 		self._all_off()	#make sure nothing is lit.
+		self.buttons_en = buttons_en if buttons_en is not None else [[True]*3 for x in range(8)] #enable all by default if a map isn't passed
+		self.buttons_exclusive = buttons_exclusive if buttons_exclusive is not None else [] #list of lists of button indices (in tuples) that are exclusive, e.g. [[(2,3),(1,3)],[(7,1),(7,2),(7,3)]]
+		#(clay): do we need a 'nostate' option as well (e.g. for a reset button) which doesn't stay lit when pressed?  maybe just an explicit reset button which changes all of the buttons to false?	
+
 
 		
 	# both display all attached midi devices, and look for ones matching nanoKONTROL2
@@ -97,16 +103,38 @@ class KorgMidiReader:
 		midi_evs = pygame.midi.midis2events(midi_events, self.midi_in.device_id)
 		for me in midi_evs:
 			midi_col = me.data1 & 0xF
-			if midi_col <= 7:  #the media buttons on the left are bigger than this
-				if me.data1 >= 0x00 and me.data1 <= 0x07: #process slider event
+
+			#the media buttons on the left are bigger than this
+			if midi_col <= 7:  
+
+				#process slider event
+				if me.data1 >= 0x00 and me.data1 <= 0x07: 
 					self.sliders[midi_col] = me.data2
-				elif me.data1 >= 0x10 and me.data1 <= 0x17: #knob event
-					self.knobs[midi_col] = me.data2			
-				elif me.data1 >= 0x20 and me.data1 <= 0x47 and me.data2 == 127:  #button event down #these are actually triggered on both button up and button down, so you have to check for the 127 (which is on button down)
+
+				#knob event
+				elif me.data1 >= 0x10 and me.data1 <= 0x17: 
+					self.knobs[midi_col] = me.data2	
+
+				# button event down #these are actually triggered on both button up and button down, 
+				# so you have to check for the 127 (which is on button down)		
+				elif me.data1 >= 0x20 and me.data1 <= 0x47 and me.data2 == 127: 
 					btn_row = (me.data1 >> 4) - 2
+
+					# don't do anything if the button isn't enabled.
 					if self.buttons_en[midi_col][btn_row]:
 						self.buttons[midi_col][btn_row] = not self.buttons[midi_col][btn_row]
 						self._light(me.data1, self.buttons[midi_col][btn_row])
+
+						# # update exclusive if this button went to True
+						# if self.buttons[midi_col][btn_row]: 
+						# 	for e in self.buttons_exclusive:
+						# 		if (midi_col,btn_row) in e:
+						# 			for b in e:
+						# 				if b is not (midi_col,btn_row):
+						# 					self.buttons[b[0]][b[1]] = False
+						# 					self._light(b[1] << 4 + b[0], False)
+		
+		# Only return True if a MIDI event occurred					
 		return False if len(midi_evs) == 0 else True
 
 

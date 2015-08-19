@@ -1,0 +1,11 @@
+import socket
+
+# NETWORK CONSTANTS
+SOCK = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+LED_IP        = "10.0.1.13" #"192.168.137.22"
+LED_PORT      = 5252
+# LED CONSTANTS
+MIN_INTENSITY = 0.0
+MAX_INTENSITY = 127.0
+MIDI_MAX      = 127.0
+SCALE 		  = 4
