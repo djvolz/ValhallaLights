@@ -21,7 +21,7 @@ import stabilize
 import audio_setup
 import constants as Constants
 
-from library.music import calculate_levels, read_musicfile_in_chunks, alternate_calculate_levels
+from music import calculate_levels, read_musicfile_in_chunks, alternate_calculate_levels
 import alsaaudio as aa
 
 

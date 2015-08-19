@@ -4,7 +4,7 @@
 
 import os
 import alsaaudio as aa
-from library.music import calculate_column_frequency
+from music import calculate_column_frequency
 
 
 class Audio:
