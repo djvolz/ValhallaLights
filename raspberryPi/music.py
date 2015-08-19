@@ -8,7 +8,7 @@ from numpy import log10, log2, frombuffer, empty, hanning, fft, delete, int16, z
 
 import urllib2
 
-from decoder import decoder 
+from decoder import decoder
 
 
 CHUNK_SIZE = 2048
