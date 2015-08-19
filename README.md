@@ -8,7 +8,6 @@ Light Controls for Valhalla (HQ of Rice University)
 Lights are deployed on a Raspberry Pi with a Wolfson audio card.
 
 #####TODO:
-- Add beagle bone files
 - Describe which wires get plugged into beagle bone GPIO (ground and like port 8, I think)
 - Video of lights working at the bar
 - Usage instructions
@@ -83,3 +82,5 @@ echo -ne '\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00' | nc -p 5252 loc
 
 
 ####Usage:
+
+
