@@ -209,7 +209,7 @@ class LEDMusicController:
 		# as we get input data.
 		mean = [12.0 for _ in range(audio_setup.Audio.POSSIBLE_COLUMNS)]
 		std = [0.5 for _ in range(audio_setup.Audio.POSSIBLE_COLUMNS)]
-		recent_samples = np.empty((audio_setup.Audio.MAX_SAMPLES, audio_setup.Audio.POSSIBLE_COLUMNS))
+		recent_samples = np.empty((stabilize.Lights.MAX_SAMPLES, audio_setup.Audio.POSSIBLE_COLUMNS))
 		num_samples = 0
 
 		while True:
@@ -354,8 +354,6 @@ class LEDMusicController:
 		converted_matrix = [0] * len(matrix)
 			
 		for col in range(len(matrix)):
-			print(std)
-
 			# Calculate output pwm, where off is at some portion of the std below
 			# the mean and full on is at some portion of the std above the mean.
 			val = matrix[col] - mean[col] + 0.5 * std[col]

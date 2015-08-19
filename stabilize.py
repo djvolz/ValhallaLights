@@ -10,6 +10,11 @@ import logging
 
 
 class Lights:
+	# This is a tradeoff between denoising quality and 
+	# amount of time you want to wait after a silent period 
+	# for the lights to work again 
+	MAX_SAMPLES		 = 20
+
 	time_of_last_intensity_reset = time.time()
 	min_intensity                = -1.0
 	max_intensity                = -1.0  # this is an arbitrary max. I never really see values above 15.0
@@ -74,8 +79,8 @@ def scale(val, src, dst):
 #
 # TODO: Look into using this algorithm to compute this on a per sample basis:
 # http://www.johndcook.com/blog/standard_deviation/   
-def compute_running_average(data, mean, std, recent_samples, num_samples):             
-	if num_samples >= audio_setup.Audio.MAX_SAMPLES:
+def compute_running_average(data, mean, std, recent_samples, num_samples):
+	if num_samples >= Lights.MAX_SAMPLES:
 		no_connection_ct = 0
 		for i in range(0, audio_setup.Audio.COLUMNS):
 			mean[i] = np.mean([item for item in recent_samples[:, i] if item > 0])
@@ -89,7 +94,9 @@ def compute_running_average(data, mean, std, recent_samples, num_samples):
 		# If more than 1/2 of the channels appear to be not connected, turn all off
 		if no_connection_ct > audio_setup.Audio.COLUMNS / 2:
 			logging.debug("no input detected, turning all lights off")
-			mean = [20 for _ in range(audio_setup.Audio.COLUMNS)]
+
+			#Needs to be POSSIBLE_COLUMNS because we are resetting the mean here
+			mean = [20 for _ in range(audio_setup.Audio.POSSIBLE_COLUMNS)]
 		else:
 			logging.debug("std: " + str(std) + ", mean: " + str(mean))
 		num_samples = 0

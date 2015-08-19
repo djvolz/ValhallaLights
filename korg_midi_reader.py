@@ -9,8 +9,6 @@ import pygame.midi
 
 class KorgMidiReader:
 	"""
-	#WARNING! You must download the korg driver and configuration software and set the LED control to "external" for the set lighting to work!!!
-
 	Select the first attached Korg NANOKontrol2 then update the current state of the controller whenever read_events() is callled.
 	
 	# NANOKontrol Magic Values:
@@ -19,6 +17,7 @@ class KorgMidiReader:
 	# 0x20 - 0x27: S buttons
 	# 0x30 - 0x37: M buttons
 	# 0x40 - 0x47: R buttons
+	#WARNING! You must download the korg driver and configuration software and set the LED control to "external" for the set lighting to work!
 	"""
 	knobs      = [0]*8
 	sliders    = [0]*8

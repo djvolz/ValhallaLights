@@ -9,7 +9,7 @@ from library.music import calculate_column_frequency
 
 class Audio:
 	# DECODER CONSTANTS
-	MAX_SAMPLES		 = 250
+	MAX_SAMPLES		 = 10
 	POSSIBLE_COLUMNS = 3
 	COLUMNS          = 2
 	SAMPLE_RATE      = 44100

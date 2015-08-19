@@ -10,6 +10,9 @@ Lights are deployed on a Raspberry Pi with a Wolfson audio card.
 #####TODO:
 - Add beagle bone files
 - Describe which wires get plugged into beagle bone GPIO (ground and like port 8, I think)
+- Video of lights working at the bar
+- Usage instructions
+- Run table of contents generator on this file
 
 ####Hardware in our Setup:
 - Raspberry Pi
@@ -77,3 +80,6 @@ Unfortunately I don't recall all the dependencies, but for the beaglebone I basi
 You can use netcat to emulate commands from the Pi, e.g.:
 
 echo -ne '\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00' | nc -p 5252 localhost
+
+
+####Usage:
