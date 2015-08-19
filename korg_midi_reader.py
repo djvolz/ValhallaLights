@@ -1,3 +1,7 @@
+# Korg Midi Reader
+# Korg nanoKONTROL2 midi controller
+# Author: clay	8/19/15
+
 import pygame
 import pygame.midi
 #import pygame.fastevent
@@ -5,6 +9,8 @@ import pygame.midi
 
 class KorgMidiReader:
 	"""
+	#WARNING! You must download the korg driver and configuration software and set the LED control to "external" for the set lighting to work!!!
+
 	Select the first attached Korg NANOKontrol2 then update the current state of the controller whenever read_events() is callled.
 	
 	# NANOKontrol Magic Values:

@@ -1,4 +1,13 @@
+# Stabilize
+# Stabilization functions for FFT'ed music data. 
+# (Filter out noise and scale values to values that can be displayed as light)
+# Author: djvolz	8/19/15
+
 import time
+import numpy as np
+import audio_setup
+import logging
+
 
 class Lights:
 	time_of_last_intensity_reset = time.time()
@@ -15,7 +24,7 @@ def stabilize_light_intensities():
 	time_difference = time_current - Lights.time_of_last_intensity_reset 
 
 	# reset the intensity values every set number of seconds
-	if time_difference > 1.0:
+	if time_difference > 10.0:
 		# print("LIGHT MIN AND MAX RESET")
 		Lights.min_intensity                = -1.0   
 		Lights.max_intensity                = -1.0
@@ -60,3 +69,33 @@ def check_if_val_within_range(val):
 # Scale the given value from the scale of src to the scale of dst.
 def scale(val, src, dst):
 	return ((val - src[0]) / (src[1]-src[0])) * (dst[1]-dst[0]) + dst[0]
+
+# Keep track of the last N samples to compute a running std / mean
+#
+# TODO: Look into using this algorithm to compute this on a per sample basis:
+# http://www.johndcook.com/blog/standard_deviation/   
+def compute_running_average(data, mean, std, recent_samples, num_samples):             
+	if num_samples >= audio_setup.Audio.MAX_SAMPLES:
+		no_connection_ct = 0
+		for i in range(0, audio_setup.Audio.COLUMNS):
+			mean[i] = np.mean([item for item in recent_samples[:, i] if item > 0])
+			std[i] = np.std([item for item in recent_samples[:, i] if item > 0])
+			
+			# Count how many channels are below 10, 
+			# if more than 1/2, assume noise (no connection)
+			if mean[i] < 10.0:
+				no_connection_ct += 1
+				
+		# If more than 1/2 of the channels appear to be not connected, turn all off
+		if no_connection_ct > audio_setup.Audio.COLUMNS / 2:
+			logging.debug("no input detected, turning all lights off")
+			mean = [20 for _ in range(audio_setup.Audio.COLUMNS)]
+		else:
+			logging.debug("std: " + str(std) + ", mean: " + str(mean))
+		num_samples = 0
+	else:
+		for i in range(0, audio_setup.Audio.COLUMNS):
+			recent_samples[num_samples][i] = data[i]
+		num_samples += 1
+
+	return mean, std, recent_samples, num_samples

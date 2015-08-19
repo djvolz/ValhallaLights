@@ -1,5 +1,9 @@
 # Valhalla Dual Color Client (DCC)
 # Read MIDI controller sliders and send 16 byte UDP packets to the Valhalla Dual Color Server to update LEDs.
+# Interpret music coming in through Wolfson audio card on Raspberry Pi
+# Convert the music to values that can be displayed by WS2812B LED strips
+# Author: djvolz	8/19/15
+# Author: clay		5/19/15
 
 import os, sys
 # import pygame
@@ -14,6 +18,8 @@ from array import array
 import socket
 import struct
 import time
+import numpy as np
+import logging
 
 #from pyudev import Context, Monitor
 #import pyudev
@@ -37,20 +43,9 @@ import alsaaudio as aa
 #todo: use pyudev to detect disconnect of the midi controller so we can reconnect.
 
 
-#WARNING! You must download the korg driver and configuration software and set the LED control to "external" for the set lighting to work!!!
-
-# NANOKontrol Magic Values:
-# 0x00 - 0x07: sliders
-# 0x10 - 0x17: knobs
-# 0x20 - 0x27: S buttons
-# 0x30 - 0x37: M buttons
-# 0x40 - 0x47: R buttons
-
-
-#TODO: fix find nanokontrol and fix setting IP and Port above...
-#TODO: add sound recording and sending to a different port #this looks like a good starting point: http://people.csail.mit.edu/hubert/pyaudio/docs/ #http://stackoverflow.com/questions/18406570/python-record-audio-on-detected-sound	#http://stackoverflow.com/questions/892199/detect-record-audio-in-python/892293#892293 #http://stackoverflow.com/questions/1797631/recognising-tone-of-the-audio #https://docs.python.org/2/library/audioop.html #https://wiki.python.org/moin/PythonInMusic #http://www.codeproject.com/Articles/32172/FFT-Guitar-Tuner #http://stackoverflow.com/questions/19079429/using-pyaudio-libraries-in-python-linux (select input)
-#TODO: add multiple "strips" or "domains"?
-#TODO: fix button up and button down mode trigger!
+#TODO (clay): fix find nanokontrol and fix setting IP and Port above...
+#TODO (clay): add multiple "strips" or "domains"?
+#TODO (clay): fix button up and button down mode trigger
 
 
 
@@ -65,6 +60,7 @@ class Constants:
 	MIDI_MAX      = 127.0
 	SCALE 		  = 4
 
+# Translate MIDI knobs and buttons into useable/clearer values
 class MIDI:
 	mode  = 0
 	rgb = [x[:] for x in [[0]*3]*3] #I really hate python sometimes...
@@ -202,40 +198,83 @@ class LEDMusicController:
 
 
 	# Analyze the audio input and turn it into light (aka magic)
+	# (Sound -> Numbers -> Other Numbers -> Network Packet -> Light.  Basically as easy as 1, 2, pi. lol I'll stop now)
+	#
+	#		Note about joke comment above, don't bother reading if you're actually frantically trying to finish
+	# 		your own lighting project.
+	# 						I used to have the actual pi symbol in here, but python says: 
+	#						SyntaxError: Non-ASCII character '\xcf' in file valhalla-dcc-music.py on line
 	def analyze_line_in(self):
+		# Start with these as our initial guesses - will calculate a rolling mean / std 
+		# as we get input data.
+		mean = [12.0 for _ in range(audio_setup.Audio.POSSIBLE_COLUMNS)]
+		std = [0.5 for _ in range(audio_setup.Audio.POSSIBLE_COLUMNS)]
+		recent_samples = np.empty((audio_setup.Audio.MAX_SAMPLES, audio_setup.Audio.POSSIBLE_COLUMNS))
+		num_samples = 0
+
 		while True:
 			changed = self.midi.read_events()
 			if self.midi.buttons['music_mode_intensity'] or self.midi.buttons['music_mode_offset'] :
+				
+				# Read the audio stream and make it blow chunks (aka get a chunk of data and the length of that data)
 				size, chunk = self.input.read()
 				if size > 0:
-					# Make the chunk even length if it isn't already
-					L = (len(chunk)/2 * 2)
-					chunk = chunk[:L]
-
-					
+					# I left this in as an entirely different method, so I can just command-f in the future
+					# and remove all of the "alternate_..." functionality
 					if self.midi.buttons['alternate_calculation']:
+						# Make the chunk even length if it isn't already
+						L = (len(chunk)/2 * 2)
+						chunk = chunk[:L]
+
 						# I like this one, but the values range significantly more because of power2
 						data = alternate_calculate_levels(chunk, audio_setup.Audio.SAMPLE_RATE, audio_setup.Audio.FREQUENCY_LIMITS)
-					else:
-						# Calculate the levels
-						data = calculate_levels(chunk, 
-												audio_setup.Audio.PERIOD_SIZE, 
-												audio_setup.Audio.SAMPLE_RATE, 
-												audio_setup.Audio.FREQUENCY_LIMITS,
-												audio_setup.Audio.COLUMNS,
-												audio_setup.Audio.NUM_CHANNELS)
+						converted_data = self.alternate_convert_data(data)
 
-					# Interpret the data
-					self.convert_data_to_packet(data)
+
+					# This is NORMAL music mode (aka boring, aka works fine, aka looks less like a seizure) 
+					else:
+						try:
+							# Calculate the levels
+							data = calculate_levels(chunk, 
+													audio_setup.Audio.PERIOD_SIZE, 
+													audio_setup.Audio.SAMPLE_RATE, 
+													audio_setup.Audio.FREQUENCY_LIMITS,
+													audio_setup.Audio.COLUMNS,
+													audio_setup.Audio.NUM_CHANNELS)
+							if not np.isfinite(np.sum(data)):
+								# Bad data --- skip it
+								continue
+						except ValueError as e:
+							# TODO: This is most likely occuring due to extra time in calculating
+							# mean/std every 250 samples which causes more to be read than expected the
+							# next time around.  Would be good to update mean/std in separate thread to
+							# avoid this --- but for now, skip it when we run into this error is good 
+							# enough ;)
+							logging.debug("skipping update: " + str(e))
+							continue
+
+						# Interpret the data 
+						converted_data = self.convert_data(data, mean, std)
+					
+					# Turn the music data into light (Computer Scientist Alchemy)
+					self.convert_matrix_to_packet(converted_data)
+					
+					# This needs to happen regardless of selected mode so that the values
+					# reflect the recently played music
+					mean, std, recent_samples, num_samples = stabilize.compute_running_average(data, mean, std, recent_samples, num_samples)
+			
+			# If not in music mode, and the MIDI controller changed, update the lights
 			elif changed:
 				self.update_lights()
+
+			# Nothing happened. Nap time.
 			else:
 				# waste time so that we don't eat too much CPU
-				#pygame.time.wait(1)
 				time.sleep(.005)
+				#pygame.time.wait(1)
 
 
-
+	
 
 	# Turn a local audio file into light (aka magic)
 	def analyze_audio_file_local(self, path):
@@ -278,7 +317,7 @@ class LEDMusicController:
 		packet.extend([int(self.midi.settings['minimum'])])
 		packet.extend([int(self.midi.settings['pulse_speed'])])
 
-		# rgb, rgb, rgb
+		# rgb, rgb, rgb (not making a joke here, there are three different RGBs)
 		packet.extend([int(item/self.midi.scale) for sublist in self.midi.rgb for item in sublist])
 		return packet
 
@@ -292,8 +331,10 @@ class LEDMusicController:
 			print("Exception in update_lights")
 			print(e)
 
-
-	def convert_data_to_packet(self, matrix):
+	# I left this in as an entirely different method, so I can just command-f in the future
+	# and remove all of the "alternate_..." functionality
+	# Denoise and map the matrix data to values that can be shown by the LEDs 
+	def alternate_convert_data(self, matrix):
 		# Dynamically update the possible light intensity range
 		stabilize.stabilize_light_intensities()
 
@@ -306,14 +347,39 @@ class LEDMusicController:
 			# Map the light values to be within the range of the MIDI light intensities
 			converted_matrix[col] = stabilize.scale(val, (lights_range.min_intensity, lights_range.max_intensity), (Constants.MIN_INTENSITY, Constants.MAX_INTENSITY))
 
+		return converted_matrix
+
+	# Denoise and map the matrix data to values that can be shown by the LEDs 
+	def convert_data(self, matrix, mean, std):
+		converted_matrix = [0] * len(matrix)
+			
+		for col in range(len(matrix)):
+			print(std)
+
+			# Calculate output pwm, where off is at some portion of the std below
+			# the mean and full on is at some portion of the std above the mean.
+			val = matrix[col] - mean[col] + 0.5 * std[col]
+			val = val / (1.25 * std[col])
+			if val > 1.0:
+				val = 1.0
+			if val < 0:
+				val = 0
+
+			# Map the light values to be within the range of the MIDI light intensities
+			converted_matrix[col] = stabilize.scale(val, (0.0, 1.0), (Constants.MIN_INTENSITY, Constants.MAX_INTENSITY))
+
+		return converted_matrix
+
+
+	def convert_matrix_to_packet(self, matrix):
 		# Music Mode INTENSITY
 		if self.midi.buttons['music_mode_intensity']:
 			rgb = [x[:] for x in [[0]*3]*3]
 
 			# Scale the MIDI value to be within the slider ranges
-			for i in range(len(converted_matrix)):
+			for i in range(len(matrix)):
 				for j in range(len(self.midi.rgb[i])):
-					rgb[i][j] = stabilize.scale(converted_matrix[i], (Constants.MIN_INTENSITY, Constants.MAX_INTENSITY), (int(self.midi.settings['minimum']/Constants.MAX_INTENSITY * self.midi.rgb[i][j]), self.midi.rgb[i][j]))
+					rgb[i][j] = stabilize.scale(matrix[i], (Constants.MIN_INTENSITY, Constants.MAX_INTENSITY), (int(self.midi.settings['minimum']/Constants.MAX_INTENSITY * self.midi.rgb[i][j]), self.midi.rgb[i][j]))
 					#print("knob %d %d" % (self.midi.midi_reader.knobs[6], int(self.midi.midi_reader.knobs[6]/254. * self.midi.midi_reader.rgb[i][j])))
 
 			# update lights with new intensities
@@ -323,7 +389,7 @@ class LEDMusicController:
 		# Music Mode OFFSET
 		if self.midi.buttons['music_mode_offset']:
 			# map between minimum and offset
-			offset = stabilize.scale(converted_matrix[0], (Constants.MIN_INTENSITY, Constants.MAX_INTENSITY), (int(self.midi.settings['minimum']/Constants.MAX_INTENSITY * self.midi.settings['offset']), self.midi.settings['offset']))
+			offset = stabilize.scale(matrix[0], (Constants.MIN_INTENSITY, Constants.MAX_INTENSITY), (int(self.midi.settings['minimum']/Constants.MAX_INTENSITY * self.midi.settings['offset']), self.midi.settings['offset']))
 			self.midi.settings['offset'] = offset
 
 			# update lights with new offset
@@ -333,6 +399,7 @@ class LEDMusicController:
 
 
 	#ugly... volume is 0-Constants.MAX_INTENSITY, balance is 0-254
+	# author: clay, hence the lack of comments, lol. (We'll see if he actually reads these comments and notices this)
 	def update_volume(self):
 		#currently the balance is stored in knobs of 1... we can just keep it there... (note its scaled up to 254)
 		#we want it where if it's centered (with some hysteresis) then both volumes are at 100%, then they fade from there.
@@ -369,6 +436,7 @@ class LEDMusicController:
 			path = sys.argv[1]
 			self.analyze_audio_file_local(path)
 
+		# Jump straight into analyzing the audio in ports
 		self.analyze_line_in()
 
 
@@ -377,6 +445,7 @@ if __name__ == '__main__':
 	lmc = LEDMusicController()
 	#thread.start_new_thread(monitor_thread, (am,)) #... what? this breaks it, no matter what the thread is...
 	try:
+		# DO PROGRAM THAT WE WROTE, MAKE VALHALLA PRETTY
 		lmc.run()
 	except (KeyboardInterrupt, SystemExit):  #these aren't caught with exceptions...
 		print("except (KeyboardInterrupt, SystemExit):")

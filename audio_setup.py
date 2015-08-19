@@ -1,3 +1,7 @@
+# Audio Setup
+# Setup the raspberry pi's audio for Valhalla's sound system and Wolfson Audio card
+# Author: djvolz	8/19/15
+
 import os
 import alsaaudio as aa
 from library.music import calculate_column_frequency
@@ -5,6 +9,8 @@ from library.music import calculate_column_frequency
 
 class Audio:
 	# DECODER CONSTANTS
+	MAX_SAMPLES		 = 250
+	POSSIBLE_COLUMNS = 3
 	COLUMNS          = 2
 	SAMPLE_RATE      = 44100
 	NUM_CHANNELS     = 2

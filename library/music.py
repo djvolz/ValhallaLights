@@ -192,7 +192,8 @@ def calculate_levels(data, chunk_size, sample_rate, frequency_limits, num_bins, 
 
     return matrix
 
-
+# I left this in as an entirely different method, so I can just command-f in the future
+# and remove all of the "alternate_..." functionality
 import numpy as np
 def alternate_calculate_levels(data, sample_rate, frequency_limits, channels=2, bits=16):
     """Calculate frequency response for each channel
