@@ -21,7 +21,7 @@ import stabilize
 import audio_setup
 import constants as Constants
 
-from music import calculate_levels, read_musicfile_in_chunks, alternate_calculate_levels
+from music import calculate_levels, read_musicfile_in_chunks
 import alsaaudio as aa
 
 
@@ -71,50 +71,37 @@ class LEDMusicController:
 				# Read the audio stream and make it blow chunks (aka get a chunk of data and the length of that data)
 				size, chunk = self.input.read()
 				if size > 0:
-					# I left this in as an entirely different method, so I can just command-f in the future
-					# and remove all of the "alternate_..." functionality
-					if self.midi.buttons['alternate_calculation']:
-						# Make the chunk even length if it isn't already
-						L = (len(chunk)/2 * 2)
-						chunk = chunk[:L]
-
-						# I like this one, but the values range significantly more because of power2
-						data = alternate_calculate_levels(chunk, audio_setup.Audio.SAMPLE_RATE, audio_setup.Audio.FREQUENCY_LIMITS)
-						converted_data = self.alternate_convert_data(data)
-
-
 					# This is NORMAL music mode (aka boring, aka works fine, aka looks less like a seizure) 
-					else:
-						try:
-							# Calculate the levels
-							data = calculate_levels(chunk, 
-													audio_setup.Audio.PERIOD_SIZE, 
-													audio_setup.Audio.SAMPLE_RATE, 
-													audio_setup.Audio.FREQUENCY_LIMITS,
-													audio_setup.Audio.COLUMNS,
-													audio_setup.Audio.NUM_CHANNELS)
-							if not np.isfinite(np.sum(data)):
-								# Bad data --- skip it
-								continue
-						except ValueError as e:
-							# TODO: This is most likely occuring due to extra time in calculating
-							# mean/std every 250 samples which causes more to be read than expected the
-							# next time around.  Would be good to update mean/std in separate thread to
-							# avoid this --- but for now, skip it when we run into this error is good 
-							# enough ;)
-							logging.debug("skipping update: " + str(e))
+					try:
+						# Calculate the levels
+						data = calculate_levels(chunk, 
+												audio_setup.Audio.PERIOD_SIZE, 
+												audio_setup.Audio.SAMPLE_RATE, 
+												audio_setup.Audio.FREQUENCY_LIMITS,
+												audio_setup.Audio.COLUMNS,
+												audio_setup.Audio.NUM_CHANNELS)
+						if not np.isfinite(np.sum(data)):
+							# Bad data --- skip it
 							continue
-
+							
 						# Interpret the data 
 						converted_data = self.convert_data(data, mean, std)
+				
+						# Turn the music data into light (Computer Scientist Alchemy)
+						self.convert_matrix_to_packet(converted_data)
 					
-					# Turn the music data into light (Computer Scientist Alchemy)
-					self.convert_matrix_to_packet(converted_data)
-					
-					# This needs to happen regardless of selected mode so that the values
-					# reflect the recently played music
-					mean, std, recent_samples, num_samples = stabilize.compute_running_average(data, mean, std, recent_samples, num_samples)
-			
+						# Keep a running average of the values to denoise the input audio
+						mean, std, recent_samples, num_samples = stabilize.compute_running_average(data, mean, std, recent_samples, num_samples)
+
+					except ValueError as e:
+						# TODO: This is most likely occuring due to extra time in calculating
+						# mean/std every n samples which causes more to be read than expected the
+						# next time around.  Would be good to update mean/std in separate thread to
+						# avoid this --- but for now, skip it when we run into this error is good 
+						# enough ;)
+						logging.debug("skipping update: " + str(e))
+						continue
+
 			# If not in music mode, and the MIDI controller changed, update the lights
 			elif changed:
 				self.update_lights()
@@ -126,18 +113,7 @@ class LEDMusicController:
 				#pygame.time.wait(1)
 
 
-	
 
-	# Turn a local audio file into light (aka magic)
-	def analyze_audio_file_local(self, path):
-		print "path = " + path
-
-		for chunk, sample_rate in read_musicfile_in_chunks(path, play_audio=True):
-			data = alternate_calculate_levels(chunk, sample_rate, audio_setup.Audio.FREQUENCY_LIMITS)
-			self.convert_data_to_packet(data)
-			changed = self.midi.read_events()
-			if changed:
-				self.update_lights()
 
 	def create_packet(self):
 		# Packet structure (received by beaglebone)
@@ -180,26 +156,8 @@ class LEDMusicController:
 			packet = self.create_packet()
 			Constants.SOCK.sendto(struct.pack('B' * len(packet),*packet),(Constants.LED_IP, Constants.LED_PORT))
 		except Exception as e:
-			print("Exception in update_lights")
+			print("Exception in update_lights")	
 			print(e)
-
-	# I left this in as an entirely different method, so I can just command-f in the future
-	# and remove all of the "alternate_..." functionality
-	# Denoise and map the matrix data to values that can be shown by the LEDs 
-	def alternate_convert_data(self, matrix):
-		# Dynamically update the possible light intensity range
-		stabilize.stabilize_light_intensities()
-
-		converted_matrix = [0] * len(matrix)
-
-		for col in range(len(matrix)):
-			# check the current possible intensity min and max
-			val, lights_range = stabilize.check_if_val_within_range(matrix[col])
-
-			# Map the light values to be within the range of the MIDI light intensities
-			converted_matrix[col] = stabilize.scale(val, (lights_range.min_intensity, lights_range.max_intensity), (Constants.MIN_INTENSITY, Constants.MAX_INTENSITY))
-
-		return converted_matrix
 
 	# Denoise and map the matrix data to values that can be shown by the LEDs 
 	def convert_data(self, matrix, mean, std):
@@ -281,11 +239,6 @@ class LEDMusicController:
 			
 
 	def run(self):
-		# Play local file if song path is given as argument
-		if len(sys.argv) > 1:
-			path = sys.argv[1]
-			self.analyze_audio_file_local(path)
-
 		# Jump straight into analyzing the audio in ports
 		self.analyze_line_in()
 

@@ -34,7 +34,7 @@ class MIDI:
 		# self.midi_reader = korg.KorgMidiReader()
 
 		# Only enable buttons that are being used
-		buttons_en = [[True, True, True],
+		buttons_en = [[False, True, True],
 					  [False, False, False],
 					  [False, False, False],
 					  [False, False, False],
@@ -88,7 +88,6 @@ class MIDI:
 						 }
 	def read_buttons(self):
 		self.buttons = {
-						'alternate_calculation':self.midi_reader.buttons[0][0],
 						'intensity_preset':		self.midi_reader.buttons[0][1],
 						'offset_preset':		self.midi_reader.buttons[0][2],
 						
