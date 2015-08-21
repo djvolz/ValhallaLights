@@ -29,12 +29,13 @@ class MIDI:
 	excl = [[sway, rotate, music_mode_offset],[pulse, music_mode_intensity]]
 
 	def __init__(self):
-		#audio_setup.init_audio()
+
+		self.volume = 60
 
 		# self.midi_reader = korg.KorgMidiReader()
 
 		# Only enable buttons that are being used
-		buttons_en = [[False, True, True],
+		buttons_en = [[True, True, True],
 					  [False, False, False],
 					  [False, False, False],
 					  [False, False, False],
@@ -88,6 +89,7 @@ class MIDI:
 						 }
 	def read_buttons(self):
 		self.buttons = {
+						'aux_in':				self.midi_reader.buttons[0][0],
 						'intensity_preset':		self.midi_reader.buttons[0][1],
 						'offset_preset':		self.midi_reader.buttons[0][2],
 						
@@ -96,7 +98,7 @@ class MIDI:
 						'music_mode_offset':    self.midi_reader.buttons[5][2],
 						
 						'third_color':			self.midi_reader.buttons[self.third_color[0]][self.third_color[1]],
-
+						'lr_swap':				self.midi_reader.buttons[6][1],
 						# 'pulse': 			    self.midi_reader.buttons[7][0],
 						# 'rotate': 	 		    self.midi_reader.buttons[7][1],
 						# 'sway':				    self.midi_reader.buttons[7][2]
@@ -116,6 +118,8 @@ class MIDI:
 			self.init_intensity_preset()
 		elif self.buttons['offset_preset']:
 			self.init_offset_preset()
+		#elif: self.buttons['aux_in']:
+
 
 
 
@@ -139,18 +143,32 @@ class MIDI:
 	# (convenience mode for music preset)
 	def init_intensity_preset(self):
 		# initial settings
-		self.midi_reader.sliders[0]    = 64 #length
+		self.midi_reader.sliders[0]    = Constants.MAX_INTENSITY #length
 		self.midi_reader.knobs[4]      = Constants.MAX_INTENSITY #offset
-		self.midi_reader.knobs[6]      = 0 # minimum
+		self.midi_reader.knobs[6]      = Constants.MAX_INTENSITY - 10 # minimum
 
 	# This function has to be hardcoded because we're emulating
 	# a user changing to these initial settings 
 	# (convenience mode for music preset)
 	def init_offset_preset(self):
 		# initial settings
-		self.midi_reader.sliders[0]    = 96 #length
+		self.midi_reader.sliders[0]    = Constants.MAX_INTENSITY #length
 		self.midi_reader.knobs[4]      = Constants.MAX_INTENSITY #offset
 		self.midi_reader.knobs[6]      = Constants.MAX_INTENSITY - 10 # minimum
+
+
+	# This function has to be hardcoded because we're emulating
+	# a user changing to these initial settings 
+	# (convenience mode for music preset)
+	def init_rainbow_preset(self):
+		# initial settings
+		self.midi_reader.sliders[0]                                        = Constants.MAX_INTENSITY #length
+		self.midi_reader.knobs[4]                                          = Constants.MAX_INTENSITY #offset
+		self.midi_reader.knobs[3]                                          = Constants.MAX_INTENSITY #gradient
+		self.midi_reader.buttons[self.third_color[0]][self.third_color[1]] = True 					 #third_color
+		self.midi_reader.sliders[2]                                        = Constants.MAX_INTENSITY #red
+		self.midi_reader.sliders[7]                                        = Constants.MAX_INTENSITY #blue
+		self.midi_reader.knobs[1]                                          = Constants.MAX_INTENSITY #green
 
 
 

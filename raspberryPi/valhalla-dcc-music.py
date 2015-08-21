@@ -9,7 +9,8 @@ import os, sys
 import array
 import ctypes
 import math
-from os import popen
+#from os import popen
+import subprocess
 from array import array
 import struct
 import time
@@ -41,7 +42,8 @@ import alsaaudio as aa
 class LEDMusicController:
 
 	def __init__(self):
-		audio_setup.init_audio()
+		audio_setup.init_audio(aux_in=False)
+		#audio_setup.init_audio()
 
 		#self.input needs to be initialized before pygame
 		self.input = audio_setup.get_audio_input()
@@ -106,6 +108,8 @@ class LEDMusicController:
 			elif changed:
 				self.update_lights()
 
+			if changed:
+				self.update_volume()
 			# Nothing happened. Nap time.
 			else:
 				# waste time so that we don't eat too much CPU
@@ -205,37 +209,40 @@ class LEDMusicController:
 
 
 
-
+	
 	#ugly... volume is 0-Constants.MAX_INTENSITY, balance is 0-254
 	# author: clay, hence the lack of comments, lol. (We'll see if he actually reads these comments and notices this)
 	def update_volume(self):
-		#currently the balance is stored in knobs of 1... we can just keep it there... (note its scaled up to 254)
-		#we want it where if it's centered (with some hysteresis) then both volumes are at 100%, then they fade from there.
-		balance = 127
-		volume = self.midi.settings['volume']
+		if self.midi.volume != self.midi.settings['volume']:
+			self.midi.volume = self.midi.settings['volume']
+			#currently the balance is stored in knobs of 1... we can just keep it there... (note its scaled up to 254)
+			#we want it where if it's centered (with some hysteresis) then both volumes are at 100%, then they fade from there.
+			balance = 127
+			volume = self.midi.settings['volume']
 
-		if balance > 120:
-			volumel = 22 * volume/Constants.MIDI_MAX
-		else:
-			volumel = 22 * balance/Constants.MIDI_MAX * volume/Constants.MIDI_MAX
+			if balance > 120:
+				volumel = 22 * volume/Constants.MIDI_MAX
+			else:
+				volumel = 22 * balance/Constants.MIDI_MAX * volume/Constants.MIDI_MAX
 
-		if balance < 134:
-			volumer = 33 * volume/Constants.MIDI_MAX
-		else:
-			volumer = 33 * (1-(254-balance)/Constants.MIDI_MAX) * volume/Constants.MIDI_MAX
-		
-		volumer = int(volumer)
-		volumel = int(volumel)
+			if balance < 134:
+				volumer = 33 * volume/Constants.MIDI_MAX
+			else:
+				volumer = 33 * (1-(254-balance)/Constants.MIDI_MAX) * volume/Constants.MIDI_MAX
+			
+			volumer = int(volumer)
+			volumel = int(volumel)
 
-		#aa.Mixer('HPOUT2 Digital').setvolume(volumel)
-		#aa.Mixer('HPOUT1 Digital').setvolume(volumer)
-		#aa.Mixer('HPOUT2L Input 1').setvolume(volumel)
-		#aa.Mixer('HPOUT2R Input 1').setvolume(volumel)
-		#aa.Mixer('HPOUT1L Input 1').setvolume(volumer)
-		#aa.Mixer('HPOUT1R Input 1').setvolume(volumer)
-		# print([volumel, volumer])
-		#would this be any faster?
-		# os.system("amixer -q -Dhw:sndrpiwsp cset name='HPOUT2L Input 1 Volume' " + str(volumer) + "; amixer -q -Dhw:sndrpiwsp cset name='HPOUT2R Input 1 Volume' " + str(volumer))
+			#aa.Mixer('HPOUT2 Digital').setvolume(volumel)
+			#aa.Mixer('HPOUT1 Digital').setvolume(volumer)
+			#aa.Mixer('HPOUT2L Input 1').setvolume(volumel)
+			#aa.Mixer('HPOUT2R Input 1').setvolume(volumel)
+			#aa.Mixer('HPOUT1L Input 1').setvolume(volumer)
+			#aa.Mixer('HPOUT1R Input 1').setvolume(volumer)
+			# print([volumel, volumer])
+			#would this be any faster?
+			#os.system("amixer -q -Dhw:sndrpiwsp cset name='HPOUT2L Input 1 Volume' " + str(volumer) + "; amixer -q -Dhw:sndrpiwsp cset name='HPOUT2R Input 1 Volume' " + str(volumer))
+			#subprocess.Popen("/usr/bin/amixer -q -Dhw:sndrpiwsp cset name='HPOUT2L Input 1 Volume' " + str(volumer) + "; /usr/bin/amixer -q -Dhw:sndrpiwsp cset name='HPOUT2R Input 1 Volume' " + str(volumer))
 			
 
 	def run(self):

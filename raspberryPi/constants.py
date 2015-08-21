@@ -2,7 +2,7 @@ import socket
 
 # NETWORK CONSTANTS
 SOCK = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-LED_IP        = "10.0.1.13" #"192.168.137.22"
+LED_IP        = "192.168.137.22"
 LED_PORT      = 5252
 # LED CONSTANTS
 MIN_INTENSITY = 0.0

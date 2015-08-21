@@ -94,7 +94,7 @@ class KorgMidiReader:
 		"""Turn all the button LEDs off."""
 		for i in range(3): #[0x20, 0x30, 0x40]:
 			for j in range(8):
-				self._light(i<<4+j, False)
+				self._light(((i+2)<<4)+j, False)
 				self.buttons[j][i] = False
 				
 	def read_events(self):
@@ -125,14 +125,16 @@ class KorgMidiReader:
 						self.buttons[midi_col][btn_row] = not self.buttons[midi_col][btn_row]
 						self._light(me.data1, self.buttons[midi_col][btn_row])
 
-						# # update exclusive if this button went to True
-						# if self.buttons[midi_col][btn_row]: 
-						# 	for e in self.buttons_exclusive:
-						# 		if (midi_col,btn_row) in e:
-						# 			for b in e:
-						# 				if b is not (midi_col,btn_row):
-						# 					self.buttons[b[0]][b[1]] = False
-						# 					self._light(b[1] << 4 + b[0], False)
+						# update exclusive if this button went to True
+						if self.buttons[midi_col][btn_row]: 
+							for e in self.buttons_exclusive:
+								if (midi_col,btn_row) in e:
+									# print('exclusion found! %d,%d' % (midi_col,btn_row))
+									for b in e:
+										if b != (midi_col,btn_row):
+											# print('turning %d,%d off' % (b[0],b[1]))
+											self.buttons[b[0]][b[1]] = False
+											self._light(((b[1]+2) << 4) + b[0], False)
 		
 		# Only return True if a MIDI event occurred					
 		return False if len(midi_evs) == 0 else True

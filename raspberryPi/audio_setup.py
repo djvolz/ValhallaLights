@@ -16,30 +16,53 @@ class Audio:
 	PERIOD_SIZE      = 2000 # Use a multiple of 8 (2000 seems to be the max before errors on wolfson audio card)
 	FREQUENCY_LIMITS = calculate_column_frequency(200, 10000, COLUMNS)
 
-def set_audio(aux_in, lr_swap):
+def set_audio(aux_in=False, lr_swap=False):
 	#HPOUT2 is the emotiva/klipsch (left)
 	#HPOUT1 is the pioneer (right)
 	#IN3 is the aux in
 	#AIF2RX2 is the SPDIF in (if setup correctly)
 	if aux_in:
+		print('setting audio to aux_in')
+		os.system("amixer -q -Dhw:sndrpiwsp cset name='SPDIF In Switch' off;") # amixer -q -Dhw:sndrpiwsp cset name='TX Playback Switch' off;  amixer -q -Dhw:sndrpiwsp cset name='RX Playback Switch' on; amixer -q -Dhw:sndrpiwsp cset name='AIF Playback Switch' on;
 		if lr_swap:
 			os.system("amixer -q -Dhw:sndrpiwsp cset name='HPOUT2L Input 1' IN3L; amixer -q -Dhw:sndrpiwsp cset name='HPOUT2R Input 1' IN3R") #lr
 			os.system("amixer -q -Dhw:sndrpiwsp cset name='HPOUT1L Input 1' IN3L; amixer -q -Dhw:sndrpiwsp cset name='HPOUT1R Input 1' IN3R")
 		else:
 			os.system("amixer -q -Dhw:sndrpiwsp cset name='HPOUT2L Input 1' IN3L; amixer -q -Dhw:sndrpiwsp cset name='HPOUT2R Input 1' IN3L") #both left
 			os.system("amixer -q -Dhw:sndrpiwsp cset name='HPOUT1L Input 1' IN3R; amixer -q -Dhw:sndrpiwsp cset name='HPOUT1R Input 1' IN3R") #both right
+
+		os.system("amixer -q -Dhw:sndrpiwsp cset 'name=AIF1TX1 Input 1' IN3L; amixer -q -Dhw:sndrpiwsp cset 'name=AIF1TX2 Input 1' IN3R") #set recording input
 	else:
+		print('setting audio to spdif')
+		os.system("amixer -q -Dhw:sndrpiwsp cset name='SPDIF In Switch' on;") # amixer -q -Dhw:sndrpiwsp cset name='TX Playback Switch' off;  amixer -q -Dhw:sndrpiwsp cset name='RX Playback Switch' on; amixer -q -Dhw:sndrpiwsp cset name='AIF Playback Switch' on;
 		if lr_swap:
 			os.system("amixer -q -Dhw:sndrpiwsp cset name='HPOUT2L Input 1' AIF2RX1; amixer -q -Dhw:sndrpiwsp cset name='HPOUT2R Input 1' AIF2RX2") #lr
 			os.system("amixer -q -Dhw:sndrpiwsp cset name='HPOUT1L Input 1' AIF2RX1; amixer -q -Dhw:sndrpiwsp cset name='HPOUT1R Input 1' AIF2RX2")
 		else:
 			os.system("amixer -q -Dhw:sndrpiwsp cset name='HPOUT2L Input 1' AIF2RX1; amixer -q -Dhw:sndrpiwsp cset name='HPOUT2R Input 1' AIF2RX1") #both left
 			os.system("amixer -q -Dhw:sndrpiwsp cset name='HPOUT1L Input 1' AIF2RX2; amixer -q -Dhw:sndrpiwsp cset name='HPOUT1R Input 1' AIF2RX2") #both right
+		os.system("amixer -q -Dhw:sndrpiwsp cset 'name=AIF1TX1 Input 1' AIF2RX1; amixer -q -Dhw:sndrpiwsp cset 'name=AIF1TX2 Input 1' AIF2RX2") #set recording input
 
-def init_audio(aux=True):
+def init_audio(aux_in=False,lr_swap=False):
 	"""Initialize the audio settings for Valhalla. Can use either aux line in (aux) or computer (SPDIF, which is AIF2RX)"""
 	os.system("amixer -q -Dhw:sndrpiwsp cset name='HPOUT2 Digital Switch' on")
-	os.system("amixer -q -Dhw:sndrpiwsp cset name='SPDIF In Switch' on;") # amixer -q -Dhw:sndrpiwsp cset name='TX Playback Switch' off;  amixer -q -Dhw:sndrpiwsp cset name='RX Playback Switch' on; amixer -q -Dhw:sndrpiwsp cset name='AIF Playback Switch' on;
+	os.system("amixer -q -Dhw:sndrpiwsp cset name='HPOUT1 Digital Switch' on")
+	os.system("amixer -q -Dhw:sndrpiwsp cset 'name=HPOUT2 Digital Volume' 128")
+	os.system("amixer -q -Dhw:sndrpiwsp cset 'name=HPOUT1 Digital Volume' 128")
+	os.system("amixer -q -Dhw:sndrpiwsp cset name='HPOUT1L Input 1' None")
+	os.system("amixer -q -Dhw:sndrpiwsp cset name='HPOUT1R Input 1' None")
+	os.system("amixer -q -Dhw:sndrpiwsp cset name='HPOUT2L Input 1' None")
+	os.system("amixer -q -Dhw:sndrpiwsp cset name='HPOUT2R Input 1' None")
+	os.system("amixer -q -Dhw:sndrpiwsp cset name='HPOUT1L Input 2' None")
+	os.system("amixer -q -Dhw:sndrpiwsp cset name='HPOUT1R Input 2' None")
+	os.system("amixer -q -Dhw:sndrpiwsp cset name='HPOUT2L Input 2' None")
+	os.system("amixer -q -Dhw:sndrpiwsp cset name='HPOUT2R Input 2' None")
+	os.system("amixer -q -Dhw:sndrpiwsp cset name='AIF1TX1 Input 1' None")
+	os.system("amixer -q -Dhw:sndrpiwsp cset name='AIF1TX2 Input 1' None")
+	os.system("amixer -q -Dhw:sndrpiwsp cset name='AIF1TX1 Input 2' None")
+	os.system("amixer -q -Dhw:sndrpiwsp cset name='AIF1TX2 Input 2' None")
+	set_audio(aux_in,lr_swap)
+	'''
 	if aux:
 		os.system("amixer -q -Dhw:sndrpiwsp cset name='HPOUT2L Input 1' IN3L; amixer -q -Dhw:sndrpiwsp cset name='HPOUT2R Input 1' IN3R") #lr
 		os.system("amixer -q -Dhw:sndrpiwsp cset name='HPOUT1L Input 1' IN3L; amixer -q -Dhw:sndrpiwsp cset name='HPOUT1R Input 1' IN3R")
@@ -50,6 +73,7 @@ def init_audio(aux=True):
 		os.system("amixer -q -Dhw:sndrpiwsp cset name='HPOUT1L Input 1' AIF2RX1; amixer -q -Dhw:sndrpiwsp cset name='HPOUT1R Input 1' AIF2RX2")
 		#set capture device to AIF2RX
 		os.system("amixer -q -Dhw:sndrpiwsp cset name='AIF1TX1 Input 1' AIF2RX1; amixer -q -Dhw:sndrpiwsp cset name='AIF1TX2 Input 1' AIF2RX2;")
+	'''
 	os.system("amixer -q -Dhw:sndrpiwsp cset name='AIF1TX1 Input 1 Volume' 32; amixer -q -Dhw:sndrpiwsp cset name='AIF1TX2 Input 1 Volume' 32") #set capture volume
 
 def get_audio_input():
