@@ -10,15 +10,18 @@ import korg_midi_reader as korg
 class MIDI:
 	mode  = 0
 	rgb = [x[:] for x in [[0]*3]*3] #I really hate python sometimes...
-	buttons = {'scale': 	 		   False,
-			   'music_mode_intensity': False,
-			   'music_mode_offset':    False,
-			   'pulse': 			   False,
-			   'rotate': 	 		   False,
-			   'sway':				   False,
-			   'red':				   False,
-			   'green':				   False,
-			   'blue':				   False
+	buttons = {
+				'lr_swap': 				False,
+				'aux_in': 				False,
+				'scale': 	 		   	False,
+				'music_mode_intensity': False,
+				'music_mode_offset':    False,
+				'pulse': 			   	False,
+				'rotate': 	 		   	False,
+				'sway':				   	False,
+				'red':				   	False,
+				'green':				False,
+				'blue':				   	False
 			   }
 	music_mode_intensity = 	(5, 1)
 	music_mode_offset    =  (5, 2)
@@ -88,7 +91,7 @@ class MIDI:
 						 'gradient':    self.midi_reader.sliders[1],
 						 }
 	def read_buttons(self):
-		self.buttons = {
+		buttons = {
 						'aux_in':				self.midi_reader.buttons[0][0],
 						'intensity_preset':		self.midi_reader.buttons[0][1],
 						'offset_preset':		self.midi_reader.buttons[0][2],
@@ -107,6 +110,10 @@ class MIDI:
 						'sway':		self.midi_reader.buttons[self.sway[0]][self.sway[1]]
 						}
 
+		if buttons['aux_in'] != self.buttons['aux_in'] or buttons['lr_swap'] != self.buttons['lr_swap']:
+				audio_setup.set_audio(buttons['aux_in'], buttons['lr_swap'])
+		
+		self.buttons = buttons
 		# adjust to 3 frequency bins if third color added
 		audio_setup.update_frequency_limits_with_columns(3 if self.buttons['third_color'] else 2)
 
