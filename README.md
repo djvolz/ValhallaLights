@@ -38,13 +38,12 @@ TL;DR:
 
 
 2. On your Pi, install these things:
-    - sudo apt-get install python-udev
-
-    - sudo apt-get install python-alsaaudio
-
-    - sudo apt-get install python-mutagen
-
-    - sudo apt-get install lame 
+```sh
+    $ sudo apt-get install python-udev
+    $ sudo apt-get install python-alsaaudio
+    $ sudo apt-get install python-mutagen
+    $ sudo apt-get install lame
+```
 
 
 
@@ -66,11 +65,13 @@ https://github.com/Yona-Appletree/LEDscape
 
 Unfortunately I don't recall all the dependencies, but for the beaglebone I basically installed LEDscape to /opt/LEDscape (you may check their instructions for dependencies and such, particularly the dtb crap).  My current install is based on git revision 1c3bc60, so you should be able to do something like:
 
-- apt-get install build-essential ... whatever else
-- cd /opt/
-- git clone https://github.com/Yona-Appletree/LEDscape.git LEDscape
-- cd LEDscape
-- git reset --hard 1c3bc60
+```sh
+$ apt-get install build-essential ... whatever else
+$ cd /opt/
+$ git clone https://github.com/Yona-Appletree/LEDscape.git LEDscape
+$ cd LEDscape
+$ git reset --hard 1c3bc60
+```
 - ... copy over my Makefile and valhalla-dces.c
 - add #define LEDSCAPE_NUM_STRIPS 8  and #define LEDSCAPE_NUM_PIXELS 1009 to ledscape.h  (or really to 288 or so)
 - Change prus to support 8 strips, rather than 48. Line 174 of pru/templates/ replace 48 with 8.  (you don't really need to do this, just set the num_pixels above to something less than ~600)
