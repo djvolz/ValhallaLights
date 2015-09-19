@@ -47,8 +47,8 @@ def init_audio(aux_in=False,lr_swap=False):
 	"""Initialize the audio settings for Valhalla. Can use either aux line in (aux) or computer (SPDIF, which is AIF2RX)"""
 	os.system("amixer -q -Dhw:sndrpiwsp cset name='HPOUT2 Digital Switch' on")
 	os.system("amixer -q -Dhw:sndrpiwsp cset name='HPOUT1 Digital Switch' on")
-	os.system("amixer -q -Dhw:sndrpiwsp cset 'name=HPOUT2 Digital Volume' 128")
-	os.system("amixer -q -Dhw:sndrpiwsp cset 'name=HPOUT1 Digital Volume' 128")
+	os.system("amixer -q -Dhw:sndrpiwsp cset 'name=HPOUT2 Digital Volume' 160")
+	os.system("amixer -q -Dhw:sndrpiwsp cset 'name=HPOUT1 Digital Volume' 150")
 	os.system("amixer -q -Dhw:sndrpiwsp cset name='HPOUT1L Input 1' None")
 	os.system("amixer -q -Dhw:sndrpiwsp cset name='HPOUT1R Input 1' None")
 	os.system("amixer -q -Dhw:sndrpiwsp cset name='HPOUT2L Input 1' None")
@@ -74,7 +74,7 @@ def init_audio(aux_in=False,lr_swap=False):
 		#set capture device to AIF2RX
 		os.system("amixer -q -Dhw:sndrpiwsp cset name='AIF1TX1 Input 1' AIF2RX1; amixer -q -Dhw:sndrpiwsp cset name='AIF1TX2 Input 1' AIF2RX2;")
 	'''
-	os.system("amixer -q -Dhw:sndrpiwsp cset name='AIF1TX1 Input 1 Volume' 32; amixer -q -Dhw:sndrpiwsp cset name='AIF1TX2 Input 1 Volume' 32") #set capture volume
+	os.system("amixer -q -Dhw:sndrpiwsp cset name='AIF1TX1 Input 1 Volume' 40; amixer -q -Dhw:sndrpiwsp cset name='AIF1TX2 Input 1 Volume' 40") #set capture volume
 
 def get_audio_input():
 	# import code

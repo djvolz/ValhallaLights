@@ -142,15 +142,15 @@ class LEDMusicController:
 		packet = [int(self.midi.mode)]
 
 		# settings
-		packet.extend([int(self.midi.settings['length'])])
+		packet.extend([int(self.midi.settings['length']*Constants.MAX_LENGTH/Constants.MIDI_MAX)])
 		packet.extend([int(self.midi.settings['gradient'])])
-		packet.extend([int(self.midi.settings['offset'])])
+		packet.extend([int(self.midi.settings['offset']*Constants.MAX_OFFSET/Constants.MIDI_MAX)]) #offset should 
 		packet.extend([int(self.midi.settings['sway_speed'])])
 		packet.extend([int(self.midi.settings['minimum'])])
 		packet.extend([int(self.midi.settings['pulse_speed'])])
 
 		# rgb, rgb, rgb (not making a joke here, there are three different RGBs)
-		packet.extend([int(item/self.midi.scale) for sublist in self.midi.rgb for item in sublist])
+		packet.extend([int(item/self.midi.dimmer_setting) for sublist in self.midi.rgb for item in sublist])
 		return packet
 
 
@@ -174,7 +174,7 @@ class LEDMusicController:
 			val = val / (1.25 * std[col])
 			if val > 1.0:
 				val = 1.0
-			if val < 0:
+			elif val < 0:
 				val = 0
 
 			# Map the light values to be within the range of the MIDI light intensities
@@ -186,7 +186,7 @@ class LEDMusicController:
 	def convert_matrix_to_packet(self, matrix):
 		# Music Mode INTENSITY
 		if self.midi.buttons['music_mode_intensity']:
-			rgb = [x[:] for x in [[0]*3]*3]
+			rgb = [[0]*3 for x in range(3)] #[x[:] for x in [[0]*3]*3]
 
 			# Scale the MIDI value to be within the slider ranges
 			for i in range(len(matrix)):
