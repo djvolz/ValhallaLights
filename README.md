@@ -7,13 +7,13 @@ Light Controls for Valhalla (HQ of Rice University)
 
 Lights are deployed on a Raspberry Pi with a Wolfson audio card.
 
-#####TODO:
+##### TODO:
 - Describe which wires get plugged into beagle bone GPIO (ground and like port 8, I think)
 - Video of lights working at the bar
 - Usage instructions
 - Run table of contents generator on this file
 
-####Hardware in our Setup:
+#### Hardware in our Setup:
 - Raspberry Pi
 - Wolfson Audio Card for Raspberry Pi
 - BeagleBone
@@ -21,7 +21,7 @@ Lights are deployed on a Raspberry Pi with a Wolfson audio card.
 - Korg nanoKONTROL2 USB Midi controller
 - Ethernet Cable to connect Raspberry Pi and BeagleBone
 
-####Explanation for our Unconventional Setup:
+#### Explanation for our Unconventional Setup:
 
 The setup uses a Raspberry Pi and a BeagleBone because we need the Wolfson audio card for the music control in the bar, and the BeagleBone can control the lights forever even if we decide to change out the Pi later in the future.
 
@@ -31,7 +31,7 @@ TL;DR:
    
    - BeagleBone is an overpowered lightswitch 
 
-####Raspberry Pi Install Instructions:
+#### Raspberry Pi Install Instructions:
 
 1. Install the Wolfson audio kernel
     - https://github.com/CirrusLogic/rpi-linux/wiki/Building-the-code#install-the-kernel-modules-and-dtb-file-on-the-raspberry-pi
@@ -47,7 +47,7 @@ TL;DR:
 
 
 
-####BeagleBone Install Instructions:
+#### BeagleBone Install Instructions:
 
 
 
@@ -80,8 +80,5 @@ $ git reset --hard 1c3bc60
 You can use netcat to emulate commands from the Pi, e.g.:
 
 echo -ne '\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00' | nc -p 5252 localhost
-
-
-####Usage:
 
 
